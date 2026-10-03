@@ -1,0 +1,1641 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Ledger &amp; Line</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a working desk. Left = the client's brief and your task; right = the live workbook; bottom = sheet tabs, one per client. */
+:root{
+  --bg:#EEF2F0; --surface:#FFFFFF; --sunk:#F6F8F7; --ink:#16201C; --muted:#56655F; --line:#D3DCD8; --line-strong:#B4C2BC;
+  --accent:#0E6B57; --accent-ink:#FFFFFF; --accent-soft:#DDEFE9;
+  --cell-hi:#FFF2B3; --target:#0E6B57;
+  --good:#23803A; --good-soft:#E3F4E6; --bad:#B83A25; --bad-soft:#FBE7E2; --warn:#9A6A12;
+  --star:#C98A0B;
+  --f-display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#101614; --surface:#18201D; --sunk:#141B18; --ink:#E4ECE8; --muted:#9AAAA3; --line:#2B3632; --line-strong:#3C4A45;
+  --accent:#43BC9C; --accent-ink:#0B1411; --accent-soft:#1D3A32;
+  --cell-hi:#4A421C; --target:#43BC9C;
+  --good:#62C774; --good-soft:#1C3322; --bad:#F08068; --bad-soft:#3D211B; --warn:#E0B354; --star:#E8B23A;
+  color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#101614; --surface:#18201D; --sunk:#141B18; --ink:#E4ECE8; --muted:#9AAAA3; --line:#2B3632; --line-strong:#3C4A45;
+  --accent:#43BC9C; --accent-ink:#0B1411; --accent-soft:#1D3A32;
+  --cell-hi:#4A421C; --target:#43BC9C;
+  --good:#62C774; --good-soft:#1C3322; --bad:#F08068; --bad-soft:#3D211B; --warn:#E0B354; --star:#E8B23A;
+  color-scheme:dark; }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{max-width:1320px;margin:0 auto;padding-inline:16px;padding-block:14px 92px}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.mark{width:34px;height:34px;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-family:var(--f-mono);font-weight:600;font-size:14px;border-radius:4px;font-style:italic}
+.brand h1{font-family:var(--f-display);font-weight:800;font-size:22px;letter-spacing:-.01em;margin:0;line-height:1}
+.brand small{display:block;color:var(--muted);font-size:12px;letter-spacing:.04em;text-transform:uppercase;margin-top:3px}
+.stat{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.stat b{font-family:var(--f-mono);font-size:17px;font-variant-numeric:tabular-nums}
+.stat span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.rank{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--accent);color:var(--accent);border-radius:999px;font-weight:600;font-size:13px}
+
+/* desk */
+.desk{display:grid;grid-template-columns:minmax(0,430px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:920px){.desk{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.pad{padding:18px}
+
+.who{display:flex;gap:12px;align-items:flex-start}
+.avatar{flex:none;width:42px;height:42px;display:grid;place-items:center;border:1.5px solid var(--ink);font-family:var(--f-display);font-weight:700;font-size:15px;border-radius:3px;background:var(--sunk)}
+.who-name{font-weight:600}
+.who-role{color:var(--muted);font-size:13px}
+.say{margin:12px 0 0;padding:12px 14px;background:var(--sunk);border:1px solid var(--line);border-radius:var(--r);font-size:14.5px}
+
+.eyebrow{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.topic{color:var(--accent)}
+h2{font-family:var(--f-display);font-weight:700;font-size:22px;line-height:1.2;letter-spacing:-.01em;margin:6px 0 10px;text-wrap:balance}
+h3{font-family:var(--f-display);font-weight:700;font-size:17px;margin:0 0 8px}
+.prompt{margin:0 0 14px}
+.prompt code,.fb code,.lesson code,.opt code{font-family:var(--f-mono);font-size:.92em;background:var(--sunk);border:1px solid var(--line);padding:0 4px;border-radius:3px;white-space:nowrap}
+
+.dots{display:flex;gap:4px;flex-wrap:wrap;margin:14px 0 2px}
+.dot{width:22px;height:16px;border:1px solid var(--line-strong);background:var(--surface);border-radius:2px;cursor:pointer;padding:0}
+.dot.on{border-color:var(--ink);border-width:2px}
+.dot.full{background:var(--good)}
+.dot.part{background:var(--star)}
+.dot.zero{background:var(--bad)}
+
+/* options */
+.opts{display:grid;gap:8px}
+.opt{display:block;width:100%;text-align:left;padding:11px 13px;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r);cursor:pointer;font-size:14.5px}
+.opt:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+.opt .key{font-family:var(--f-mono);font-weight:600;color:var(--muted);margin-right:8px}
+.opt:disabled{cursor:default}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.opt.right{border-color:var(--good);background:var(--good-soft)}
+.why{font-size:13.5px;margin:6px 0 2px;color:var(--ink)}
+.why b{color:var(--bad)}
+.opt.right .why b{color:var(--good)}
+
+/* formula input */
+.fxrow{display:flex;align-items:stretch;border:1.5px solid var(--line-strong);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.fxrow:focus-within{border-color:var(--accent)}
+.namebox{flex:none;padding:9px 10px;font-family:var(--f-mono);font-size:13.5px;border-right:1px solid var(--line);background:var(--sunk);min-width:62px;text-align:center}
+.fxlabel{flex:none;padding:9px 8px;font-family:var(--f-mono);font-style:italic;color:var(--muted);border-right:1px solid var(--line)}
+.fxrow input{flex:1;min-width:0;border:0;background:transparent;padding:9px 10px;font-family:var(--f-mono);font-size:15px;color:var(--ink);outline:none}
+.hint-line{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.btn{padding:9px 16px;border-radius:var(--r);border:1px solid var(--line-strong);background:var(--surface);cursor:pointer;font-weight:600;font-size:14px}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted);text-decoration:underline;text-underline-offset:3px;padding-inline:6px}
+.worth{margin-left:auto;font-size:12.5px;color:var(--muted);font-family:var(--f-mono)}
+
+/* feedback */
+.fb{margin-top:14px;padding:12px 14px;border-radius:var(--r);border:1px solid var(--line);font-size:14px}
+.fb.good{background:var(--good-soft);border-color:var(--good)}
+.fb.bad{background:var(--bad-soft);border-color:var(--bad)}
+.fb.info{background:var(--sunk)}
+.fb .tag{display:inline-block;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.fb.good .tag{color:var(--good)}
+.fb.bad .tag{color:var(--bad)}
+.fb p{margin:4px 0}
+.fb .cmp{font-family:var(--f-mono);font-size:12.5px;color:var(--muted);margin-top:6px}
+.lesson{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line-strong)}
+details.others{margin-top:10px}
+details.others summary{cursor:pointer;font-weight:600;font-size:13.5px}
+details.others ul{margin:8px 0 0;padding-left:18px;display:grid;gap:8px}
+
+/* workbook */
+.book{display:flex;flex-direction:column;min-width:0}
+.bookhead{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.filename{font-weight:600;font-size:13.5px}
+.filename span{color:var(--muted);font-weight:400}
+.ro{display:flex;flex:1 1 280px;min-width:0;border:1px solid var(--line);border-radius:4px;background:var(--sunk)}
+.ro .namebox{padding:5px 8px;font-size:12.5px;min-width:54px}
+.ro .fxlabel{padding:5px 7px;font-size:13px}
+.ro .rocontent{padding:5px 8px;font-family:var(--f-mono);font-size:13px;white-space:nowrap;overflow-x:auto;min-width:0;flex:1}
+.gridwrap{overflow:auto;max-height:470px}
+table.grid{border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.grid th,.grid td{border:1px solid var(--line);padding:4px 8px;height:28px;white-space:pre}
+.grid thead th{position:sticky;top:0;background:var(--sunk);color:var(--muted);font-weight:500;font-size:12px;text-align:center;z-index:2}
+.grid tbody th{position:sticky;left:0;background:var(--sunk);color:var(--muted);font-weight:500;font-size:12px;text-align:center;min-width:36px;z-index:1}
+.grid thead th.corner{left:0;z-index:3}
+.grid td{min-width:92px;cursor:cell;background:var(--surface)}
+.grid td.num{text-align:right}
+.grid td.hdr{font-weight:600;background:var(--sunk)}
+.grid td.sel{outline:2px solid var(--ink);outline-offset:-2px}
+.grid td.target{outline:2px dashed var(--target);outline-offset:-3px;background:var(--accent-soft)}
+.grid td.ok{background:var(--good-soft);color:var(--ink)}
+.grid td.no{background:var(--bad-soft)}
+.grid td.err{color:var(--bad);font-weight:600}
+.grid td.fx{color:var(--ink)}
+.grid td.fx::before{content:"";}
+.sp{color:var(--warn);opacity:.9}
+.statusbar{display:flex;flex-wrap:wrap;gap:6px 16px;padding:7px 12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.statusbar b{color:var(--ink);font-weight:600}
+.legend{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:10px;display:inline-block;border:1.5px dashed var(--target);background:var(--accent-soft)}
+
+/* data table controls */
+.ctl{display:flex;gap:4px;align-items:center;justify-content:space-between}
+.sortb{border:1px solid var(--line-strong);background:var(--surface);border-radius:3px;width:24px;height:22px;cursor:pointer;padding:0;font-size:12px;line-height:1}
+.sortb.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.grid select{font:inherit;font-size:12.5px;padding:2px 4px;border:1px solid var(--line-strong);border-radius:3px;background:var(--surface);color:var(--ink);width:100%}
+.grid tr.filters th{top:29px}
+.grid tr.filters th.fcell{padding:3px 4px}
+.grid thead th.colname{color:var(--ink);font-weight:600;font-size:13px;text-align:left}
+
+/* tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--sunk);border-top:1px solid var(--line-strong);padding-bottom:env(safe-area-inset-bottom,0px);z-index:20}
+.tabs-in{max-width:1320px;margin:0 auto;padding-inline:16px;display:flex;gap:2px;overflow-x:auto;align-items:flex-end}
+.tab{flex:none;padding:9px 16px 8px;border:1px solid transparent;border-top:0;background:transparent;cursor:pointer;font-size:13.5px;color:var(--muted);border-radius:0 0 6px 6px;display:flex;gap:8px;align-items:baseline;white-space:nowrap}
+.tab:hover{color:var(--ink)}
+.tab.on{background:var(--surface);border-color:var(--line-strong);color:var(--ink);font-weight:600;box-shadow:inset 0 3px 0 var(--accent)}
+.tab small{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);font-weight:400}
+.tab .stars{color:var(--star);letter-spacing:1px;font-size:12px}
+
+/* welcome / results */
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:920px){.hero{grid-template-columns:minmax(0,1fr)}}
+.hero h2{font-size:clamp(30px,5vw,50px);font-weight:800;letter-spacing:-.025em;line-height:1.02;margin:8px 0 16px}
+.hero h2 em{font-style:normal;color:var(--accent)}
+.lede{font-size:16.5px;max-width:58ch;margin:0 0 18px}
+.route{display:grid;gap:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.route-row{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;padding:12px 14px;border-top:1px solid var(--line);align-items:start}
+.route-row:first-child{border-top:0}
+.route-row .cellref{font-family:var(--f-mono);font-size:12px;color:var(--muted);border:1px solid var(--line-strong);text-align:center;padding:2px 0;border-radius:3px}
+.route-row b{display:block}
+.route-row span{color:var(--muted);font-size:13.5px}
+.rules{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.rules li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:baseline}
+.rules .k{font-family:var(--f-mono);font-weight:600;color:var(--accent);min-width:42px}
+table.ranks{width:100%;border-collapse:collapse;font-size:14px;margin-top:6px}
+.ranks td{padding:6px 4px;border-top:1px solid var(--line)}
+.ranks td:last-child{text-align:right;font-family:var(--f-mono);color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
+.chip{font-size:12.5px;padding:3px 9px;border:1px solid var(--line-strong);border-radius:999px;background:var(--sunk)}
+.bigstars{font-size:34px;color:var(--star);letter-spacing:4px;line-height:1}
+.bigstars .off{color:var(--line-strong)}
+.tasklist{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:0}
+.tasklist li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+.tasklist li span:last-child{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.pts-0{color:var(--bad)} .pts-p{color:var(--warn)} .pts-f{color:var(--good)}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:16px}
+.sumcard{padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.sumcard .n{font-family:var(--f-display);font-weight:700;font-size:16px}
+.muted{color:var(--muted)}
+@media (max-width:920px),(pointer:coarse){ .fxrow input,.grid select{font-size:16px} .gridwrap{max-height:60vh} }
+.touch-only{display:none}
+@media (pointer:coarse){ .touch-only{display:inline} .mouse-only{display:none} }
+@media (prefers-reduced-motion:no-preference){ .fb{animation:pop .18s ease-out} @keyframes pop{from{transform:translateY(3px)}to{transform:none}} }
+</style>
+
+<div class="app" id="app"></div>
+<nav class="tabs" aria-label="Sheets"><div class="tabs-in" id="tabs"></div></nav>
+
+<script>
+/* ================= FORMULA ENGINE ================= */
+const EPOCH = Date.UTC(1899,11,30);
+const toSerial = (y,m,d) => Math.round((Date.UTC(y,m-1,d)-EPOCH)/864e5);
+const fromSerial = s => { const t=new Date(EPOCH+Math.floor(s)*864e5); return {y:t.getUTCFullYear(),m:t.getUTCMonth()+1,d:t.getUTCDate(),wd:t.getUTCDay()}; };
+const D = iso => { const [y,m,d]=iso.split('-').map(Number); return toSerial(y,m,d); };
+const GAME_TODAY = D('2026-10-01');
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const colNum = c => { let n=0; for (const ch of c) n=n*26+(ch.charCodeAt(0)-64); return n; };
+const colStr = n => { let s=''; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26);} return s; };
+const splitAddr = a => { const m=/^([A-Z]+)(\d+)$/.exec(a); return {c:colNum(m[1]), r:+m[2]}; };
+
+const ERR = e => ({e});
+const isErr = v => v!==null && typeof v==='object' && 'e' in v;
+const isRange = v => v!==null && typeof v==='object' && 'r' in v;
+function SynErr(msg){ this.msg=msg; }
+
+function tokenize(src){
+  const t=[]; let i=0;
+  while(i<src.length){
+    const c=src[i], rest=src.slice(i);
+    if(c===' '||c==='\t'){ i++; continue; }
+    if(c==='"'){
+      let j=i+1, s='';
+      while(true){
+        if(j>=src.length) throw new SynErr('A text value is missing its closing double quote (").');
+        if(src[j]==='"'){ if(src[j+1]==='"'){ s+='"'; j+=2; continue; } break; }
+        s+=src[j++];
+      }
+      t.push({k:'str',v:s}); i=j+1; continue;
+    }
+    let m;
+    if((m=/^(\d+(\.\d*)?|\.\d+)/.exec(rest))){ t.push({k:'num',v:parseFloat(m[0])}); i+=m[0].length; continue; }
+    if((m=/^\$?([A-Za-z]{1,3})\$?(\d+)/.exec(rest)) && !/^[A-Za-z0-9_(]/.test(rest.slice(m[0].length))){
+      t.push({k:'ref',v:(m[1]+m[2]).toUpperCase(),raw:m[0]}); i+=m[0].length; continue;
+    }
+    if((m=/^[A-Za-z_][A-Za-z0-9_.]*/.exec(rest))){ t.push({k:'name',v:m[0]}); i+=m[0].length; continue; }
+    if((m=/^(<=|>=|<>)/.exec(rest))){ t.push({k:'op',v:m[0]}); i+=2; continue; }
+    if('+-*/^&=<>(),:%;'.includes(c)){ t.push({k:'op',v:c===';'?',':c}); i++; continue; }
+    if(c==='!') throw new SynErr('Sheet references (Sheet!A1) are not used in this game. Refer to cells on this sheet.');
+    throw new SynErr(`Excel can't read the character "${c}".`);
+  }
+  return t;
+}
+
+function parse(src){
+  const t=tokenize(src); let p=0;
+  const isOp = v => t[p] && t[p].k==='op' && t[p].v===v;
+  const expect = v => { if(!isOp(v)) throw new SynErr(v===')' ? 'A bracket is missing: every "(" needs a matching ")".' : `Expected "${v}".`); p++; };
+  function cmp(){ let l=cat(); while(t[p]&&t[p].k==='op'&&['=','<>','<','>','<=','>='].includes(t[p].v)){ const o=t[p++].v; l={k:'bin',o,l,r:cat()}; } return l; }
+  function cat(){ let l=add(); while(isOp('&')){ p++; l={k:'bin',o:'&',l,r:add()}; } return l; }
+  function add(){ let l=mul(); while(isOp('+')||isOp('-')){ const o=t[p++].v; l={k:'bin',o,l,r:mul()}; } return l; }
+  function mul(){ let l=pw(); while(isOp('*')||isOp('/')){ const o=t[p++].v; l={k:'bin',o,l,r:pw()}; } return l; }
+  function pw(){ let l=un(); while(isOp('^')){ p++; l={k:'bin',o:'^',l,r:un()}; } return l; }
+  function un(){ if(isOp('-')){ p++; return {k:'neg',x:un()}; } if(isOp('+')){ p++; return un(); } return post(); }
+  function post(){ let x=prim(); while(isOp('%')){ p++; x={k:'pct',x}; } return x; }
+  function prim(){
+    const tk=t[p++];
+    if(!tk) throw new SynErr('The formula ends too early. Something is missing at the end.');
+    if(tk.k==='num'||tk.k==='str') return {k:'lit',v:tk.v};
+    if(tk.k==='ref'){
+      if(isOp(':')){ p++; const b=t[p++]; if(!b||b.k!=='ref') throw new SynErr('A range needs a cell on both sides of ":", like E2:E7.'); return {k:'range',a:tk.v,b:b.v}; }
+      return {k:'ref',a:tk.v};
+    }
+    if(tk.k==='name'){
+      const n=tk.v.toUpperCase();
+      if(isOp('(')){
+        p++; const args=[];
+        if(!isOp(')')){
+          while(true){
+            if(isOp(',')||isOp(')')) args.push({k:'empty'}); else args.push(cmp());
+            if(isOp(',')){ p++; continue; }
+            break;
+          }
+        }
+        expect(')');
+        return {k:'fn',n,args};
+      }
+      if(n==='TRUE') return {k:'lit',v:true};
+      if(n==='FALSE') return {k:'lit',v:false};
+      return {k:'name',n:tk.v};
+    }
+    if(tk.k==='op'&&tk.v==='('){ const e=cmp(); expect(')'); return e; }
+    throw new SynErr(`Excel didn't expect "${tk.v}" there.`);
+  }
+  if(!t.length) throw new SynErr('The formula is empty after the = sign.');
+  const e=cmp();
+  if(p<t.length) throw new SynErr(t[p].v===')' ? 'There is an extra ")" with no matching "(".' : `Excel didn't expect "${t[p].v}" there. Is an operator or comma missing?`);
+  return e;
+}
+
+const fmtGeneral = n => Number.isInteger(n) ? String(n) : String(+n.toPrecision(12));
+function num(v){
+  if(isErr(v)) return v;
+  if(v===null) return 0;
+  if(typeof v==='number') return v;
+  if(typeof v==='boolean') return v?1:0;
+  const s=String(v).trim();
+  if(/^-?\d+(\.\d+)?$/.test(s)) return +s;
+  if(/^-?\d+(\.\d+)?%$/.test(s)) return parseFloat(s)/100;
+  return ERR('#VALUE!');
+}
+function str(v){ if(v===null) return ''; if(typeof v==='boolean') return v?'TRUE':'FALSE'; if(typeof v==='number') return fmtGeneral(v); return String(v); }
+function bool(v){
+  if(isErr(v)) return v;
+  if(v===null) return false;
+  if(typeof v==='boolean') return v;
+  if(typeof v==='number') return v!==0;
+  const s=String(v).toUpperCase(); if(s==='TRUE') return true; if(s==='FALSE') return false;
+  return ERR('#VALUE!');
+}
+function dateArg(v){
+  if(isErr(v)) return v;
+  if(v===null) return 0;
+  if(typeof v==='number') return Math.floor(v);
+  if(typeof v==='string'){
+    let m;
+    if((m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v.trim()))) return toSerial(+m[1],+m[2],+m[3]);
+    if((m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v.trim()))) return toSerial(+m[3],+m[1],+m[2]);
+  }
+  return ERR('#VALUE!');
+}
+function cmpv(a,b){
+  if(a===null) a = typeof b==='string' ? '' : typeof b==='boolean' ? false : 0;
+  if(b===null) b = typeof a==='string' ? '' : typeof a==='boolean' ? false : 0;
+  const rk = x => typeof x==='number'?0:typeof x==='string'?1:2;
+  if(rk(a)!==rk(b)) return rk(a)-rk(b);
+  if(typeof a==='string'){ a=a.toLowerCase(); b=b.toLowerCase(); }
+  return a<b?-1:a>b?1:0;
+}
+
+class Book{
+  constructor(cells){ this.cells=cells; this.cache={}; this.stack=new Set(); }
+  get(addr){
+    const c=this.cells[addr];
+    if(!c) return null;
+    if(c.f===undefined) return c.v===undefined ? null : c.v;
+    if(addr in this.cache) return this.cache[addr];
+    if(this.stack.has(addr)) return ERR('#CIRC!');
+    this.stack.add(addr);
+    let v;
+    try{ v=this.sc(parse(c.f.slice(1))); } catch(x){ v=ERR(x instanceof SynErr ? '#SYNTAX' : '#ERROR!'); }
+    this.stack.delete(addr);
+    this.cache[addr]=v;
+    return v;
+  }
+  sc(n){ const v=this.ev(n); if(isRange(v)) return v.r.length===1 ? v.r[0] : ERR('#VALUE!'); return v; }
+  range(a,b){
+    const A=splitAddr(a), B=splitAddr(b), r=[];
+    for(let row=Math.min(A.r,B.r); row<=Math.max(A.r,B.r); row++)
+      for(let col=Math.min(A.c,B.c); col<=Math.max(A.c,B.c); col++) r.push(this.get(colStr(col)+row));
+    return {r};
+  }
+  ev(n){
+    switch(n.k){
+      case 'lit': return n.v;
+      case 'empty': return null;
+      case 'ref': return this.get(n.a);
+      case 'range': return this.range(n.a,n.b);
+      case 'name': return ERR('#NAME?');
+      case 'neg': { const v=num(this.sc(n.x)); return isErr(v)?v:-v; }
+      case 'pct': { const v=num(this.sc(n.x)); return isErr(v)?v:v/100; }
+      case 'bin': {
+        const a=this.sc(n.l), b=this.sc(n.r);
+        if(isErr(a)) return a; if(isErr(b)) return b;
+        if(n.o==='&') return str(a)+str(b);
+        if(['=','<>','<','>','<=','>='].includes(n.o)){
+          const c=cmpv(a,b);
+          return {'=':c===0,'<>':c!==0,'<':c<0,'>':c>0,'<=':c<=0,'>=':c>=0}[n.o];
+        }
+        const x=num(a), y=num(b);
+        if(isErr(x)) return x; if(isErr(y)) return y;
+        if(n.o==='+') return x+y; if(n.o==='-') return x-y; if(n.o==='*') return x*y;
+        if(n.o==='/') return y===0 ? ERR('#DIV/0!') : x/y;
+        if(n.o==='^') return Math.pow(x,y);
+        return ERR('#VALUE!');
+      }
+      case 'fn': return this.fn(n);
+    }
+    return ERR('#VALUE!');
+  }
+  fn(n){
+    const A=n.args, self=this;
+    const S = i => A[i] ? self.sc(A[i]) : null;
+    const has = i => A[i] && A[i].k!=='empty';
+    const nums = () => {
+      const out=[];
+      for(const a of A){
+        if(a.k==='empty') continue;
+        const v=self.ev(a);
+        if(isRange(v)){ for(const x of v.r){ if(isErr(x)) return x; if(typeof x==='number') out.push(x); } }
+        else { if(isErr(v)) return v; if(v===null) continue; const x=num(v); if(isErr(x)) return x; out.push(x); }
+      }
+      return out;
+    };
+    const bools = () => {
+      const out=[];
+      for(const a of A){
+        const v=self.ev(a);
+        const list = isRange(v) ? v.r.filter(x=>x!==null && typeof x!=='string') : [v];
+        for(const x of list){ const b=bool(x); if(isErr(b)) return b; out.push(b); }
+      }
+      return out;
+    };
+    const N1 = i => num(S(i));
+    const T = i => { const v=S(i); return isErr(v) ? v : str(v); };
+    const need = k => A.length<k;
+    switch(n.n){
+      case 'SUM': { const x=nums(); return isErr(x)?x:x.reduce((s,v)=>s+v,0); }
+      case 'AVERAGE': { const x=nums(); if(isErr(x)) return x; return x.length ? x.reduce((s,v)=>s+v,0)/x.length : ERR('#DIV/0!'); }
+      case 'MIN': { const x=nums(); return isErr(x)?x:(x.length?Math.min(...x):0); }
+      case 'MAX': { const x=nums(); return isErr(x)?x:(x.length?Math.max(...x):0); }
+      case 'COUNT': { let c=0; for(const a of A){ const v=self.ev(a); const l=isRange(v)?v.r:[v]; for(const x of l) if(typeof x==='number') c++; } return c; }
+      case 'COUNTA': { let c=0; for(const a of A){ const v=self.ev(a); const l=isRange(v)?v.r:[v]; for(const x of l) if(x!==null && x!=='') c++; } return c; }
+      case 'ROUND': { const x=N1(0), d=has(1)?N1(1):0; if(isErr(x)) return x; if(isErr(d)) return d; const f=Math.pow(10,d); return Math.sign(x)*Math.round(Math.abs(x)*f+1e-9)/f; }
+      case 'INT': { const x=N1(0); return isErr(x)?x:Math.floor(x); }
+      case 'ABS': { const x=N1(0); return isErr(x)?x:Math.abs(x); }
+      case 'IF': {
+        if(need(1)) return ERR('#ARGS');
+        const c=bool(S(0)); if(isErr(c)) return c;
+        if(c) return has(1)?S(1):(A.length>1?0:true);
+        return has(2)?S(2):(A.length>2?0:false);
+      }
+      case 'IFS': {
+        if(A.length<2 || A.length%2) return ERR('#ARGS');
+        for(let i=0;i<A.length;i+=2){ const c=bool(S(i)); if(isErr(c)) return c; if(c) return S(i+1); }
+        return ERR('#N/A');
+      }
+      case 'AND': { const b=bools(); if(isErr(b)) return b; return b.length ? b.every(Boolean) : ERR('#VALUE!'); }
+      case 'OR': { const b=bools(); if(isErr(b)) return b; return b.length ? b.some(Boolean) : ERR('#VALUE!'); }
+      case 'NOT': { const b=bool(S(0)); return isErr(b)?b:!b; }
+      case 'IFERROR': { const v=S(0); return isErr(v) ? S(1) : v; }
+      case 'TRIM': { const s=T(0); return isErr(s)?s:s.replace(/^ +| +$/g,'').replace(/ {2,}/g,' '); }
+      case 'PROPER': { const s=T(0); return isErr(s)?s:s.toLowerCase().replace(/(^|[^a-z])([a-z])/g,(m,a,b)=>a+b.toUpperCase()); }
+      case 'UPPER': { const s=T(0); return isErr(s)?s:s.toUpperCase(); }
+      case 'LOWER': { const s=T(0); return isErr(s)?s:s.toLowerCase(); }
+      case 'LEN': { const s=T(0); return isErr(s)?s:s.length; }
+      case 'LEFT': { const s=T(0), k=has(1)?N1(1):1; if(isErr(s)) return s; if(isErr(k)) return k; if(k<0) return ERR('#VALUE!'); return s.slice(0,Math.floor(k)); }
+      case 'RIGHT': { const s=T(0), k=has(1)?N1(1):1; if(isErr(s)) return s; if(isErr(k)) return k; if(k<0) return ERR('#VALUE!'); return k===0?'':s.slice(-Math.floor(k)); }
+      case 'MID': { if(need(3)) return ERR('#ARGS'); const s=T(0), a=N1(1), k=N1(2); if(isErr(s)) return s; if(isErr(a)) return a; if(isErr(k)) return k; if(a<1||k<0) return ERR('#VALUE!'); return s.substr(Math.floor(a)-1,Math.floor(k)); }
+      case 'CONCAT': case 'CONCATENATE': { let s=''; for(const a of A){ const v=self.ev(a); const l=isRange(v)?v.r:[v]; for(const x of l){ if(isErr(x)) return x; s+=str(x);} } return s; }
+      case 'SUBSTITUTE': { const s=T(0), o=T(1), w=T(2); if(isErr(s)) return s; if(o==='') return s; return s.split(o).join(w); }
+      case 'VALUE': { return num(S(0)); }
+      case 'TODAY': return GAME_TODAY;
+      case 'NOW': return GAME_TODAY + 9.5/24;
+      case 'DATE': { if(need(3)) return ERR('#ARGS'); const y=N1(0), m=N1(1), d=N1(2); if([y,m,d].some(isErr)) return ERR('#VALUE!'); return Math.round((Date.UTC(y,m-1,d)-EPOCH)/864e5); }
+      case 'YEAR': { const d=dateArg(S(0)); return isErr(d)?d:fromSerial(d).y; }
+      case 'MONTH': { const d=dateArg(S(0)); return isErr(d)?d:fromSerial(d).m; }
+      case 'DAY': { const d=dateArg(S(0)); return isErr(d)?d:fromSerial(d).d; }
+      case 'WEEKDAY': { const d=dateArg(S(0)); if(isErr(d)) return d; const w=fromSerial(d).wd, ty=has(1)?N1(1):1; return ty===2?(w+6)%7+1:ty===3?(w+6)%7:w+1; }
+      case 'EOMONTH': { if(need(2)) return ERR('#ARGS'); const d=dateArg(S(0)), k=N1(1); if(isErr(d)) return d; if(isErr(k)) return k; const p=fromSerial(d); return Math.round((Date.UTC(p.y,p.m-1+Math.trunc(k)+1,0)-EPOCH)/864e5); }
+      case 'EDATE': { if(need(2)) return ERR('#ARGS'); const d=dateArg(S(0)), k=N1(1); if(isErr(d)) return d; if(isErr(k)) return k; const p=fromSerial(d); const last=fromSerial(Math.round((Date.UTC(p.y,p.m-1+Math.trunc(k)+1,0)-EPOCH)/864e5)).d; return Math.round((Date.UTC(p.y,p.m-1+Math.trunc(k),Math.min(p.d,last))-EPOCH)/864e5); }
+      case 'DAYS': { const e=dateArg(S(0)), s=dateArg(S(1)); if(isErr(e)) return e; if(isErr(s)) return s; return e-s; }
+      case 'DATEDIF': {
+        if(need(3)) return ERR('#ARGS');
+        const s=dateArg(S(0)), e=dateArg(S(1)), u=T(2); if(isErr(s)) return s; if(isErr(e)) return e;
+        if(s>e) return ERR('#NUM!');
+        const a=fromSerial(s), b=fromSerial(e), U=String(u).toUpperCase();
+        if(U==='D') return e-s;
+        if(U==='M'){ let m=(b.y-a.y)*12+b.m-a.m; if(b.d<a.d) m--; return m; }
+        if(U==='Y'){ let y=b.y-a.y; if(b.m<a.m||(b.m===a.m&&b.d<a.d)) y--; return y; }
+        return ERR('#NUM!');
+      }
+      case 'YEARFRAC': { const s=dateArg(S(0)), e=dateArg(S(1)); if(isErr(s)) return s; if(isErr(e)) return e; return Math.abs(e-s)/365.25; }
+      case 'NETWORKDAYS': {
+        if(need(2)) return ERR('#ARGS');
+        const s=dateArg(S(0)), e=dateArg(S(1)); if(isErr(s)) return s; if(isErr(e)) return e;
+        const hol=new Set();
+        if(has(2)){ const v=self.ev(A[2]); const l=isRange(v)?v.r:[v]; for(const x of l){ if(x===null) continue; const d=dateArg(x); if(!isErr(d)) hol.add(d); } }
+        const lo=Math.min(s,e), hi=Math.max(s,e); let c=0;
+        for(let d=lo; d<=hi; d++){ const w=fromSerial(d).wd; if(w!==0&&w!==6&&!hol.has(d)) c++; }
+        return s<=e ? c : -c;
+      }
+      default: return ERR('#NAME?');
+    }
+  }
+}
+
+function shiftFormula(f, dr){
+  return f.split(/("(?:[^"]|"")*")/).map((seg,i)=> i%2 ? seg :
+    seg.replace(/(^|[^A-Za-z0-9_])(\$?)([A-Za-z]{1,3})(\$?)(\d+)(?![A-Za-z0-9_(])/g,
+      (m,pre,d1,col,d2,row)=> pre+d1+col+d2+(d2 ? row : String(+row+dr)))).join('');
+}
+const hasRef = f => f.split(/("(?:[^"]|"")*")/).some((seg,i)=> i%2===0 && /(^|[^A-Za-z0-9_])\$?[A-Za-z]{1,3}\$?\d+(?![A-Za-z0-9_(])/.test(seg));
+const norm = f => f.split(/("(?:[^"]|"")*")/).map((s,i)=> i%2 ? s : s.toUpperCase().replace(/\s+/g,'').replace(/;/g,',')).join('');
+function expandTarget(t){
+  if(!t.includes(':')) return [t];
+  const [a,b]=t.split(':'), A=splitAddr(a), B=splitAddr(b), out=[];
+  for(let r=A.r;r<=B.r;r++) out.push(colStr(A.c)+r);
+  return out;
+}
+
+/* ================= DISPLAY ================= */
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function fmtVal(v, fmt){
+  if(v===null||v===undefined) return '';
+  if(isErr(v)) return v.e==='#CIRC!' ? 'Circular' : v.e==='#ARGS' ? '#ARGS' : v.e;
+  if(typeof v==='boolean') return v?'TRUE':'FALSE';
+  if(typeof v==='string') return v;
+  if(fmt==='money') return (v<0?'-':'')+'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(fmt==='pct') return (v*100).toFixed(1)+'%';
+  if(fmt==='date'){ const p=fromSerial(v); return String(p.d).padStart(2,'0')+'-'+MON[p.m-1]+'-'+p.y; }
+  if(fmt==='int') return v.toLocaleString('en-US');
+  return fmtGeneral(Math.abs(v)<1e15 ? +v.toFixed(6) : v);
+}
+function showSpaces(s){
+  const e=esc(s);
+  return e.replace(/^ +| +$| {2,}/g, m=>'<span class="sp" title="extra space">'+'·'.repeat(m.length)+'</span>');
+}
+function plain(v,fmt){ const s=fmtVal(v,fmt); return typeof v==='string' ? `"${v}"` : s; }
+
+/* ================= CONTENT ================= */
+function sheet(rows, colFmt={}, extra={}){
+  const cells={};
+  rows.forEach((r,ri)=>r.forEach((v,ci)=>{
+    if(v===null||v===undefined||v==='') return;
+    const a=colStr(ci+1)+(ri+1);
+    cells[a] = (typeof v==='string' && v[0]==='=') ? {f:v} : {v};
+    if(ri===0) cells[a].h=true; else if(colFmt[colStr(ci+1)]) cells[a].fmt=colFmt[colStr(ci+1)];
+  }));
+  for(const [a,c] of Object.entries(extra)) cells[a]=c;
+  return cells;
+}
+
+/* Situation 1: retail */
+const RETAIL = [
+  ['2026-03-02','North','Backpack',24,1896],
+  ['2026-03-02','South','Water Bottle',41,1025],
+  ['2026-03-03','East','Desk Lamp',12,540],
+  ['2026-03-03','North','Notebook',65,552.5],
+  ['2026-03-04','West','Calculator',18,990],
+  ['2026-03-04','North','Desk Lamp',22,990],
+  ['2026-03-05','South','Backpack',9,711],
+  ['2026-03-05','East','Planner',33,594],
+  ['2026-03-06','North','Water Bottle',15,375],
+  ['2026-03-06','West','Backpack',27,2133],
+  ['2026-03-09','North','Calculator',31,1705],
+  ['2026-03-09','South','Notebook',48,408],
+  ['2026-03-10','East','USB Drive',20,598],
+  ['2026-03-10','West','Planner',11,198],
+].map(r=>({Date:D(r[0]),Region:r[1],Product:r[2],Units:r[3],Revenue:r[4]}));
+const RETAIL_COLS=[{k:'Date',fmt:'date'},{k:'Region'},{k:'Product'},{k:'Units',fmt:'int'},{k:'Revenue',fmt:'money'}];
+const retailSheet = sheet([['Date','Region','Product','Units','Revenue'], ...RETAIL.map(r=>[r.Date,r.Region,r.Product,r.Units,r.Revenue])], {A:'date',D:'int',E:'money'});
+
+const cafeSheet = sheet([
+  ['Item','Price','Cost','Qty sold','Revenue','Profit','Margin','New price','','Planned increase'],
+  ['Latte',4.5,1.2,320,'','','','','',0.05],
+  ['Cappuccino',4.2,1.1,280],
+  ['Espresso',3.0,0.6,190,'','','','','','Last month revenue'],
+  ['Mocha',4.8,1.5,150,'','','','','',4920],
+  ['Croissant',3.5,1.4,210,'','','','','','Change vs last month'],
+  ['Muffin',3.0,1.0,175],
+  ['Total'],
+], {B:'money',C:'money',D:'int',E:'money',F:'money',G:'pct',H:'money'},
+{ J2:{v:0.05,fmt:'pct'}, J4:{v:'Last month revenue',h:true}, J5:{v:4920,fmt:'money'}, J6:{v:'Change vs last month',h:true}, A8:{v:'Total',h:true},
+  A10:{v:'Menu stats',h:true}, A11:{v:'Average price',h:true}, A12:{v:'Items with sales',h:true}, A13:{v:'Highest qty',h:true}, A14:{v:'Lowest qty',h:true} });
+
+const custSheet = sheet([
+  ['Raw name','Raw email','Customer ID','Country','Clean name','Clean email','Signup year','Label'],
+  ['  john SMITH',' John.Smith@Mail.COM ','US-2023-0153','usa '],
+  ['MARIA   garcia ','maria.g@mail.com','ES-2024-0021','Spain'],
+  ['ahmad ismail','AHMAD.I@MAIL.COM','MY-2022-0448','malaysia'],
+  ['  li  WEI','liwei@mail.com  ','CN-2025-0310',' china'],
+  ["sarah o'connor ",'Sarah.OC@Mail.com','IE-2024-0097','Ireland'],
+  ['DAVID   lee','dlee@mail.com','US-2025-0512','USA'],
+]);
+
+const hrSheet = sheet([
+  ['Employee','Start date','Leave taken','Score','Dept','Years of service','Review due','Bonus','Rating','Remote OK','','Company holidays'],
+  ['Aisha Rahman',D('2019-06-17'),8,92,'Sales','','','','','','',D('2026-11-26')],
+  ['Ben Carter',D('2024-02-05'),12,74,'Operations','','','','','','',D('2026-12-24')],
+  ['Chen Mei',D('2021-11-29'),5,80,'Sales','','','','','','',D('2026-12-25')],
+  ['Daniel Ortiz',D('2025-08-11'),2,58,'Warehouse'],
+  ['Elena Petrova',D('2017-03-01'),15,88,'Finance','','','','','','','Working days left'],
+  ['Farid Hassan',D('2023-10-02'),9,66,'Operations'],
+], {B:'date',C:'int',D:'int',F:'int',G:'date',L:'date'},
+{ L6:{v:'Working days left',h:true} });
+
+const execSheet = sheet([
+  ['Month','Revenue','Costs','Target','Status','','Q1 key figures'],
+  ['January',48200,31500,45000,'','','Total revenue'],
+  ['February',41900,29800,45000],
+  ['March',52600,33100,50000,'','','Profit margin'],
+  ['','','','','','',''],
+  ['','','','','','',''],
+  ['','','','','','','Best month revenue'],
+], {B:'money',C:'money',D:'money'},
+{ G2:{v:'Total revenue',h:true}, G4:{v:'Profit margin',h:true}, G7:{v:'Best month revenue',h:true}, G1:{v:'Q1 key figures',h:true} });
+
+const SITS = [
+{
+  id:'retail', tab:'Retail', company:'Harbour Street Retail', file:'weekly_sales_march.xlsx',
+  who:'Dana Lee', role:'Store Manager', ini:'DL',
+  story:`Hi, welcome to Harbour Street! We run four stores and every week I get sales files from each one. They come from different people in different countries, so things get messy. Can you help me set up this sheet properly and pull out what I need for the North store delivery?`,
+  skills:['Entering & formatting data','Regional variations','Rows & columns','Worksheets','Reading large data blocks','Sorting','Filtering'],
+  cells: retailSheet,
+  tasks:[
+  { type:'mcq', topic:'Entering & formatting data', title:'The disappearing zeros',
+    say:`Our product codes start with zeros, like 00123. Every time I type one, Excel shows 123. Can you fix it?`,
+    q:`What's the best way to keep the leading zeros?`,
+    opts:[
+      {t:`Format the column as Text before typing, or start the entry with an apostrophe ('00123).`, ok:true,
+       why:`Excel sees 00123 as the number 123 and drops the zeros, because zeros in front don't change a number's value. Text format (or the apostrophe) tells Excel to store exactly what you type. Product codes are labels, not quantities, so text is the right type: you'll never add them up.`},
+      {t:`Make the column wider so the zeros fit.`,
+       why:`Column width only changes how much you can see. The zeros were never stored, so a wider column still shows 123.`},
+      {t:`Apply the Currency format.`,
+       why:`Currency adds a symbol and decimals ($123.00). The value is still a number, so the leading zeros are still lost.`},
+      {t:`Type a space before the code.`,
+       why:`A leading space does make Excel store text, but now there's an invisible character in your data. Filters and lookups will treat " 00123" and "00123" as different values. You'll clean up exactly this kind of mess in the Customers sheet.`},
+    ]},
+  { type:'mcq', topic:'Regional variations', title:'Whose date is it?',
+    say:`The London branch sent a file. One date reads 03/04/2026, and they meant 3 April 2026. Our computers use US settings (month/day/year).`,
+    q:`How will your Excel read 03/04/2026?`,
+    opts:[
+      {t:`As March 4, 2026`, ok:true,
+       why:`Excel reads dates using the regional setting of the computer (or the locale chosen during import). US order is month/day/year, so 03 becomes the month. No warning appears, which is what makes this risky: the date looks valid but is wrong. Choose the right locale when importing (Data > From Text/CSV), or agree on an unambiguous format like 2026-04-03. This game shows dates as 03-Apr-2026 for the same reason.`},
+      {t:`As April 3, 2026, because Excel detects the file came from the UK.`,
+       why:`Excel doesn't check where a file came from. It only follows the regional setting of the computer that opens it, or the locale you pick during import.`},
+      {t:`It shows an error because the date is ambiguous.`,
+       why:`Excel doesn't warn about ambiguous dates. 03/04 is valid in both orders, so Excel quietly uses its own setting.`},
+      {t:`As text, so it can't be used in calculations.`,
+       why:`That happens with a date like 25/04/2026, where 25 can't be a month. Here both parts can be a month, so Excel turns it into a real date, just the wrong one.`},
+    ]},
+  { type:'mcq', topic:'Rows & columns', title:'Making room for Cost',
+    say:`I need a new Cost column between Product (column C) and Units (column D).`,
+    q:`Which action puts the new empty column in the right place?`,
+    opts:[
+      {t:`Right-click the column D header and choose Insert.`, ok:true,
+       why:`Excel inserts a new column to the left of the one you select. Selecting D pushes Units and everything after it one column to the right, and the new empty D sits right after Product. Formulas that point to the moved cells update automatically.`},
+      {t:`Right-click the column C header and choose Insert.`,
+       why:`The new column would go to the left of Product, between Region and Product. Insert always adds before the selected column.`},
+      {t:`Click cell D1 and press Delete.`,
+       why:`Delete only clears what's in the cell. Nothing is inserted, and you've just erased the Units header.`},
+      {t:`Select column D and choose Hide.`,
+       why:`Hide makes a column invisible but doesn't create any space. The Units data is still there, just out of sight.`},
+    ]},
+  { type:'mcq', topic:'Worksheets', title:'Adding up the quarter',
+    say:`The workbook has sheets named January, February and March. Each one has its monthly total in cell F25. On a Summary sheet I want the quarter total.`,
+    q:`Which formula adds F25 from all three month sheets?`,
+    opts:[
+      {t:`<code>=SUM(January:March!F25)</code>`, ok:true,
+       why:`This is a 3D reference. January:March means every sheet from January to March in tab order, and F25 is taken from each one. If you later move a sheet between January and March, it gets included too, so keep the tab order tidy.`},
+      {t:`<code>=SUM(F25:F25)</code>`,
+       why:`With no sheet name, Excel only looks at the sheet the formula is on. This just returns F25 from the Summary sheet.`},
+      {t:`<code>=January+February+March!F25</code>`,
+       why:`Excel reads January and February as unknown names and returns #NAME?. Each sheet needs its own ! and cell: =January!F25+February!F25+March!F25 would work.`},
+      {t:`<code>=SUM(January!F25:March)</code>`,
+       why:`The sheet range has to come before the !, not after it. Excel won't accept this formula.`},
+    ]},
+  { type:'mcq', topic:'Reading large data blocks', title:'5,000 rows down',
+    say:`The full export has 5,000 rows. My cursor is in A1 and I want to jump to the last row of data.`,
+    q:`What's the fastest way?`,
+    opts:[
+      {t:`Press Ctrl + Down Arrow.`, ok:true,
+       why:`Ctrl + Arrow jumps to the edge of the current data block, the last filled cell before a blank. Add Shift (Ctrl + Shift + Down) to select everything on the way. If the column has a blank cell partway down, the jump stops there, which is also a handy way to find gaps.`},
+      {t:`Scroll down with the mouse wheel.`,
+       why:`It works, but slowly. On 5,000 rows it's easy to overshoot or not notice where the data ends.`},
+      {t:`Press Ctrl + Home.`,
+       why:`Ctrl + Home goes the other way: back to A1.`},
+      {t:`Press Page Down.`,
+       why:`Page Down moves one screen at a time. You'd need well over 100 presses to reach row 5,000.`},
+    ]},
+  { type:'mcq', topic:'Reading large data blocks', title:'Where did the headers go?',
+    say:`When I scroll down, the header row disappears and I can't tell Units from Revenue.`,
+    q:`What keeps row 1 visible while scrolling?`,
+    opts:[
+      {t:`View > Freeze Panes > Freeze Top Row`, ok:true,
+       why:`Freezing locks the top row in place while everything else scrolls underneath. To freeze both the header row and the first column, select B2 and choose Freeze Panes.`},
+      {t:`Make row 1 bold.`,
+       why:`Bold makes headers easier to spot, but they still scroll off the screen.`},
+      {t:`Hide rows 2 to 50.`,
+       why:`Hiding removes rows from view. It doesn't hold anything in place, and you can no longer see that data.`},
+      {t:`Copy the header row every 50 rows.`,
+       why:`This breaks the data block. Sorting, filtering and formulas would treat the copied headers as data rows.`},
+    ]},
+  { type:'mcq', topic:'Sorting', title:'The Sort Warning',
+    say:`I selected only the Revenue column (E) and clicked Sort Largest to Smallest. Excel showed a Sort Warning with two choices.`,
+    q:`Which choice should Dana pick?`,
+    opts:[
+      {t:`Expand the selection`, ok:true,
+       why:`Expanding sorts whole rows together, so each revenue figure stays with its date, region and product. Every row is one record and must stay in one piece.`},
+      {t:`Continue with the current selection`,
+       why:`Only column E would be reordered. The revenue figures would no longer match their products and regions. The data is scrambled with no error message, and only Undo can save you.`},
+      {t:`Cancel, then sort each column one at a time`,
+       why:`Sorting columns separately breaks every row apart. It's the same problem as the option above, repeated.`},
+    ]},
+  { type:'sort', topic:'Sorting', title:'Best sellers first',
+    say:`I want to see our strongest lines first. Can you sort the table so the highest revenue is at the top?`,
+    q:`Use the sort buttons in the table headers. When the table looks right, press Check.`,
+    lesson:`Sorting Revenue from largest to smallest puts the top line first. Because the whole table was sorted, every row kept its date, region and product together. Notice the Notebook: 65 units, but only $552.50. Sorting by units would have told a different story.`},
+  { type:'filter', topic:'Filtering', title:'The North delivery',
+    say:`I'm planning a stock delivery for the North store. Show me only North rows where we sold 20 or more units.`,
+    q:`Use the filter boxes under the headers. The status bar shows how many rows are visible. Press Check when ready.`,
+    lesson:`Filters hide rows that don't match; nothing is deleted. Filters on two columns work like AND: a row has to pass both. The count in the status bar (4 of 14) is a quick check. Clear filters when you're done so nobody mistakes a filtered view for the full data.`},
+  ]
+},
+{
+  id:'cafe', tab:'Café', company:'Corner Bean Café', file:'march_menu_figures.xlsx',
+  who:'Sam Okafor', role:'Owner', ini:'SO',
+  story:`I know what I sell, but not what I actually earn. Here's March: prices, costs and how many of each item we sold. I need revenue, profit and margin for each item, prices after a 5% rise, some quick menu stats, and how this month compares with last month.`,
+  skills:['Writing formulas','Order of precedence','Absolute references','Profit & margin','Percentages','SUM & AutoSum','AVERAGE, COUNT, MAX & MIN','Insert Function'],
+  cells: cafeSheet,
+  tasks:[
+  { type:'formula', topic:'What is a formula?', title:'Revenue per item',
+    say:`Start simple: how much money did each item bring in?`,
+    q:`In <b>E2</b>, write a formula for revenue (price × quantity sold). The game fills it down to E7, like dragging the fill handle.`,
+    target:'E2:E7', ref:'=B2*D2', fmt:'money',
+    lesson:`Every formula starts with =. Using cell references (B2, D2) instead of typed numbers means revenue updates by itself if a price changes. When filled down, the references move with each row (B3*D3, B4*D4…). These are relative references.`,
+    diag:[] },
+  { type:'mcq', topic:'Order of precedence', title:'A quick sum',
+    say:`Quick question. I typed =2+3*4 into a cell to check something.`,
+    q:`What does Excel show?`,
+    opts:[
+      {t:`14`, ok:true, why:`Excel follows the order of operations: brackets first, then ^ (powers), then * and /, then + and −. So 3*4 = 12 is calculated first, then 2 + 12 = 14. You may know this as BODMAS or PEMDAS.`},
+      {t:`20`, why:`20 comes from working left to right: (2+3)*4. Excel doesn't work left to right when the operators differ; multiplication goes first. To get 20 you'd write =(2+3)*4.`},
+      {t:`24`, why:`24 is 2*3*4. That treats the + as a multiplication, which no rule does.`},
+      {t:`The text =2+3*4`, why:`Because it starts with =, Excel treats it as a formula and shows the result. You'd only see the text if the cell was formatted as Text before typing.`},
+    ]},
+  { type:'formula', topic:'Order of precedence', title:'Profit per item',
+    say:`Now the real question: after costs, how much did I make on each item?`,
+    q:`In <b>F2</b>, calculate total profit for the item: (price − cost) × quantity sold.`,
+    target:'F2:F7', ref:'=(B2-C2)*D2', fmt:'money',
+    lesson:`The brackets make Excel subtract cost from price first, then multiply by quantity. Without them, Excel multiplies cost by quantity first and takes that away from the price, giving a big negative number. <code>=E2-C2*D2</code> also works, because multiplication happens before subtraction there, which is what you want.`,
+    diag:[
+      {re:/^=B2-C2\*D2$/, msg:`Excel did C2*D2 first (multiplication comes before subtraction), then took that from B2. For the latte that's 4.50 − 384 = −379.50. Put B2-C2 in brackets so it's calculated first.`},
+      {re:/^=\(?B2-C2\)?$/, msg:`That's the profit on one item. Sam wants the profit on everything sold, so multiply by the quantity in D2.`},
+    ]},
+  { type:'formula', topic:'Profit & margin', title:'Margin',
+    say:`My accountant keeps asking about "margin". What percentage of each price is profit?`,
+    q:`In <b>G2</b>, calculate the margin: profit per item ÷ price, i.e. (price − cost) ÷ price. The column is already formatted as a percentage.`,
+    target:'G2:G7', ref:'=(B2-C2)/B2', fmt:'pct',
+    lesson:`Margin = profit ÷ price. Excel stores it as a fraction (0.733) and the Percentage format displays 73.3%. Don't multiply by 100: the format does that for display, and keeping the fraction means you can use it in other formulas. <code>=F2/E2</code> gives the same answer.`,
+    diag:[
+      {re:/^=B2-C2\/B2$/, msg:`Division happens before subtraction, so Excel did C2/B2 first and took that from B2 (4.50 − 0.27 = 4.23, shown as 423%). Put B2-C2 in brackets.`},
+      {re:/\*100/, msg:`Leave out the *100. The cell is formatted as a percentage, which already multiplies by 100 for display. With *100 you get 7,333.3% instead of 73.3%.`},
+      {re:/\/C2/, msg:`Dividing by cost gives the markup, not the margin. Margin divides by the price the customer pays.`},
+    ]},
+  { type:'formula', topic:'Absolute references', title:'The 5% price rise',
+    say:`I'm thinking of raising every price by the rate in J2. What would the new prices be?`,
+    q:`In <b>H2</b>, calculate the new price: price × (1 + the increase in J2). It must still work when filled down to H7.`,
+    target:'H2:H7', ref:'=B2*(1+$J$2)', fmt:'money', mustRef:'J2',
+    lesson:`The $ signs in <code>$J$2</code> lock the reference. When you fill down, B2 becomes B3, B4… but $J$2 stays put, so every row uses the same increase. That's an absolute reference. Press F4 right after typing J2 to add the $ signs. <code>J$2</code> also works here because only the row needs locking.`,
+    diag:[
+      {re:/^(?!.*\$J\$?2|.*J\$2).*J2/, msg:`Your formula works in H2, but when it's filled down, J2 turns into J3, J4… which are empty or hold other values. Lock it with $J$2 so every row uses the same rate.`},
+    ],
+    mustRefMsg:`You typed the 5% into the formula. It gives the right answer today, but if Sam changes the rate in J2, your new prices won't update. Point to J2 instead, and lock it with $.`},
+  { type:'formula', topic:'SUM & AutoSum', title:'Monthly total',
+    say:`What did we take in total this month?`,
+    q:`In <b>E8</b>, add up the revenue in E2 to E7 using a function.`,
+    target:'E8', ref:'=SUM(E2:E7)', fmt:'money', mustUse:'SUM',
+    mustUseMsg:`The total is right, but adding cells one by one is slow and easy to break when rows are added. Use the SUM function with a range.`,
+    lesson:`<code>SUM(E2:E7)</code> adds every number in the range. It's shorter than adding cells one by one, and if you insert a row inside the range, Excel stretches it automatically.`,
+    diag:[ {re:/SUM\(E2:E8\)|SUM\(E1:E8\)/, msg:`The range includes E8, the cell you're typing in. That's a circular reference: the cell would be adding itself. Stop the range at E7.`} ]},
+  { type:'mcq', topic:'SUM & AutoSum', title:'Alt + =',
+    say:`My friend said I can press Alt + = in E8 instead of typing. What does that actually do?`,
+    q:`Sam clicks E8, just below the revenue figures, and presses Alt + =. What happens?`,
+    opts:[
+      {t:`Excel types =SUM(E2:E7) and highlights the range, waiting for you to press Enter.`, ok:true,
+       why:`That's AutoSum. It guesses the range from the numbers directly above (or to the left, if there are none above). Always glance at the highlighted range before pressing Enter: if there's a blank cell in the column, AutoSum stops at it and misses the numbers above.`},
+      {t:`Excel adds up the whole of column E, including the header.`,
+       why:`AutoSum only picks the block of numbers next to the cell. It stops at text (like the header) or a blank cell.`},
+      {t:`The total appears in the status bar only.`,
+       why:`The status bar shows a Sum whenever you select numbers, but Alt + = writes an actual formula into the cell.`},
+      {t:`The Insert Function window opens.`,
+       why:`That's Shift + F3 or the fx button. Alt + = goes straight to SUM.`},
+    ]},
+  { type:'mcq', topic:'AutoSum', title:'The AutoSum menu',
+    say:`I found the AutoSum button on the right side of the Home ribbon. There's a little arrow next to it. What's in there?`,
+    q:`Sam clicks the arrow next to AutoSum (Σ). Which list of functions appears at the top of the menu?`,
+    opts:[
+      {t:`Sum, Average, Count Numbers, Max, Min`, ok:true,
+       why:`These are the five core functions on the AutoSum shortcut. Pick one and Excel writes the formula and guesses the range, so you often need just two selections: the cell, then the function. "Count Numbers" writes the COUNT function. "More Functions…" at the bottom opens Insert Function.`},
+      {t:`Sum, If, Vlookup, Round, Today`,
+       why:`These are all real functions, but AutoSum only offers the five quick summary functions. The others are in the Formulas tab or Insert Function.`},
+      {t:`Add, Subtract, Multiply, Divide, Percent`,
+       why:`Those are maths operations, not Excel functions. You type them with + − * / in a formula.`},
+      {t:`Sum, Count, CountA, CountIf, CountBlank`,
+       why:`Only SUM and COUNT are on AutoSum (COUNT appears as "Count Numbers"). The other COUNT functions are in Insert Function or the Formulas tab.`},
+    ]},
+  { type:'formula', topic:'AutoSum: AVERAGE', title:'Average price',
+    say:`What's the average price on my menu?`,
+    q:`In <b>B11</b>, calculate the average of the prices in B2:B7. (In Excel you could use AutoSum > Average.)`,
+    target:'B11', ref:'=AVERAGE(B2:B7)', fmt:'money', mustUse:'AVERAGE',
+    mustUseMsg:`Right answer, but AVERAGE does the adding and counting for you, and stays right if you add a menu item. Use AVERAGE(B2:B7).`,
+    lesson:`<code>=AVERAGE(B2:B7)</code> adds the numbers and divides by how many there are. The syntax is the function name, an opening bracket, the range (first cell, colon, last cell), and a closing bracket. AVERAGE skips empty cells and text, so blank rows don't drag the average down.`,
+    diag:[
+      {re:/\/7$/, msg:`There are 6 prices in B2:B7, not 7. Dividing by the wrong count is easy to do by hand, which is why AVERAGE is safer.`},
+      {re:/AVERAGE\(C2|AVERAGE\(D2|AVERAGE\(E2/, msg:`Check the column. Prices are in column B.`},
+    ]},
+  { type:'formula', topic:'AutoSum: COUNT', title:'How many items sold?',
+    say:`How many menu items have a sales quantity recorded?`,
+    q:`In <b>B12</b>, count the cells in D2:D7 that contain numbers. (In AutoSum this is called "Count Numbers".)`,
+    target:'B12', ref:'=COUNT(D2:D7)', fmt:'int', mustUse:'COUNT',
+    mustUseMsg:`Use COUNT, the function behind AutoSum's "Count Numbers". COUNTA gives the same answer here, but it counts anything that isn't empty, including text and errors, so it can mislead you when a column has notes like "n/a".`,
+    lesson:`<code>COUNT</code> counts only cells that contain numbers. It tells you how many values you have, not their total. Use COUNTA when you want to count every non-empty cell, including text.`,
+    diag:[
+      {re:/COUNT\(A2/, msg:`Column A holds item names, which are text. COUNT only counts numbers, so it returns 0. Count the quantities in column D.`},
+      {re:/^=SUM\(D2:D7\)$/, msg:`SUM adds the quantities (1,325 items sold). Sam wants how many cells have a number: that's COUNT.`},
+    ]},
+  { type:'formula', topic:'AutoSum: MAX', title:'Best seller',
+    say:`What was the highest quantity we sold of any single item?`,
+    q:`In <b>B13</b>, find the largest number in the quantities D2:D7.`,
+    target:'B13', ref:'=MAX(D2:D7)', fmt:'int', mustUse:'MAX',
+    mustUseMsg:`That's the right number, but typed in or picked by eye. If next month's figures change, it won't update. Use MAX(D2:D7).`,
+    lesson:`<code>MAX</code> returns the largest number in a range. Here it's 320 lattes. MAX gives you the value, not the item name; you'd look across the row to see which item it is.`,
+    diag:[
+      {re:/MIN\(/, msg:`MIN finds the smallest value. For the highest quantity, use MAX.`},
+      {re:/MAX\(E2/, msg:`That's the highest revenue, not the highest quantity. Quantities are in column D.`},
+    ]},
+  { type:'formula', topic:'AutoSum: MIN', title:'Slowest seller',
+    say:`And the lowest quantity sold?`,
+    q:`In <b>B14</b>, find the smallest number in D2:D7.`,
+    target:'B14', ref:'=MIN(D2:D7)', fmt:'int', mustUse:'MIN',
+    mustUseMsg:`Right number, but use MIN(D2:D7) so it updates when the data changes.`,
+    lesson:`<code>MIN</code> returns the smallest number in a range: 150 mochas. MIN ignores blank cells, so an empty row doesn't count as zero.`,
+    diag:[
+      {re:/MAX\(/, msg:`MAX finds the largest value. For the lowest quantity, use MIN.`},
+      {re:/MIN\(D2:D8\)|MIN\(D1:D8\)/, msg:`Your range is fine (MIN skips the blank D8), but keep ranges to the data rows, D2:D7, so a total added later isn't included.`},
+    ]},
+  { type:'mcq', topic:'Function syntax', title:'Spot the right syntax',
+    say:`My assistant typed four versions of the average formula. Only one is right.`,
+    q:`Which formula correctly averages every price from B2 to B7?`,
+    opts:[
+      {t:`<code>=AVERAGE(B2:B7)</code>`, ok:true,
+       why:`Equals sign, function name, then the range inside brackets. The colon means "everything from B2 to B7", so all six cells are included.`},
+      {t:`<code>=AVERAGE(B2,B7)</code>`,
+       why:`The comma separates individual arguments, so this averages only two cells, B2 and B7, and skips the four in between. It runs without an error, which makes it easy to miss.`},
+      {t:`<code>=AVERAGE B2:B7</code>`,
+       why:`The arguments must be inside brackets. Without them Excel can't read the formula and shows an error message.`},
+      {t:`<code>AVERAGE(B2:B7)</code>`,
+       why:`Without the = sign at the start, Excel treats this as plain text and calculates nothing.`},
+    ]},
+  { type:'mcq', topic:'Insert Function', title:'Forgot the function',
+    say:`I want the average price, but I can't remember the function name or what goes in the brackets.`,
+    q:`What's the best thing for Sam to do?`,
+    opts:[
+      {t:`Click fx (Insert Function), search for "average", and fill in the guided arguments.`, ok:true,
+       why:`Insert Function lets you search by description. It then opens the Function Arguments box, which explains each argument and previews the result before you commit. It's the safest way to use a function you don't know well.`},
+      {t:`Type <code>=AVG(B2:B7)</code>`,
+       why:`AVG isn't an Excel function, so the cell shows #NAME?. The function is AVERAGE, which is exactly why searching helps.`},
+      {t:`Add the prices with SUM and divide by 7.`,
+       why:`There are 6 prices (B2:B7), not 7. Counting by hand is easy to get wrong; AVERAGE counts for you.`},
+      {t:`Type <code>=AVERAGE</code> and press Enter.`,
+       why:`A function needs its arguments in brackets. Without (B2:B7), Excel shows an error message and won't accept it.`},
+    ]},
+  { type:'formula', topic:'Percentages', title:'Better than last month?',
+    say:`Last month we took the amount in J5. Did we grow?`,
+    q:`In <b>J7</b>, calculate the percentage change from last month (J5) to this month (E8): (new − old) ÷ old.`,
+    target:'J7', ref:'=(E8-J5)/J5', fmt:'pct',
+    prefill:{E8:'=SUM(E2:E7)'},
+    lesson:`Percentage change = (new − old) ÷ old. The brackets matter, because the subtraction has to happen before the division. A positive result means growth: revenue went up 5%. <code>=E8/J5-1</code> gives the same answer.`,
+    diag:[
+      {re:/^=E8-J5\/J5$/, msg:`Division happens first, so Excel calculated J5/J5 (= 1) and took it from E8. Put E8-J5 in brackets.`},
+      {re:/^=\(J5-E8\)\/J5$/, msg:`Old minus new flips the sign, so growth looks like a fall. Use new minus old: (E8-J5)/J5.`},
+      {re:/^=E8\/J5$/, msg:`This gives this month as a share of last month (105%), not the change. Subtract 1, or use (E8-J5)/J5.`},
+      {re:/\/E8$/, msg:`Divide by the old value (J5), not the new one. Percentage change is always measured against where you started.`},
+    ]},
+  ]
+},
+{
+  id:'cust', tab:'Customers', company:'Northwind Subscriptions', file:'customer_export_merged.xlsx',
+  who:'Priya Nair', role:'Customer Success Lead', ini:'PN',
+  story:`We exported our customer list from three old systems and it's a mess: random capitals, extra spaces, mixed formats. Our email campaign goes out on Friday. Can you clean it up so every name and email is consistent?`,
+  skills:['Why consistency matters','TRIM','PROPER, UPPER & LOWER','LEFT, RIGHT & MID','LEN','Joining text with &','Paste as values'],
+  cells: custSheet,
+  tasks:[
+  { type:'mcq', topic:'Inconsistent data', title:'The missing customers',
+    say:`Our report counts 40 customers in the North region, but I know there are 52. When I checked with LEN, some Region cells are 6 characters long, but "North" only has 5.`,
+    q:`What's the most likely cause?`,
+    opts:[
+      {t:`Some cells contain "North " with a trailing space, which Excel treats as a different value.`, ok:true,
+       why:`To Excel, "North" and "North " are two different text values, so filters, counts and lookups split them into separate groups. The extra character is invisible, which is why LEN is such a useful check. TRIM removes it. In this sheet, extra spaces are shown as orange dots so you can see them.`},
+      {t:`Excel's filter is case-sensitive, so "north" and "North" are counted separately.`,
+       why:`Excel's filters and comparisons ignore letter case. Capitals make data look untidy, but a 6-character "North" points to an extra character, not a capital letter.`},
+      {t:`The report is filtering the wrong column.`,
+       why:`That can happen, but it doesn't explain why some cells are 6 characters long. The length is the clue.`},
+      {t:`LEN counts the cell border as a character.`,
+       why:`LEN counts only the characters in the value. Formatting like borders, colours or fonts is never counted.`},
+    ]},
+  { type:'formula', topic:'TRIM & PROPER', title:'Clean names',
+    say:`Names first. I want "John Smith", not "  john SMITH".`,
+    q:`In <b>E2</b>, write one formula that removes the extra spaces from A2 <i>and</i> capitalises the first letter of each word.`,
+    target:'E2:E7', ref:'=PROPER(TRIM(A2))', cs:true,
+    lesson:`TRIM removes spaces at both ends and squeezes double spaces in the middle down to one. PROPER capitalises the first letter of each word. Nesting them, <code>PROPER(TRIM(A2))</code>, does both: Excel works from the inside out. PROPER even handles O'Connor correctly.`,
+    diag:[
+      {re:/^=TRIM\(A2\)$/, msg:`The spaces are gone, but the capitals are still messy ("john SMITH"). Wrap it in PROPER.`},
+      {re:/^=PROPER\(A2\)$/, msg:`The capitals are fixed, but the extra spaces are still there (look for the orange dots). Put TRIM inside: PROPER(TRIM(A2)).`},
+      {re:/UPPER/, msg:`UPPER turns every letter into a capital (JOHN SMITH). Names need just the first letter of each word capitalised: that's PROPER.`},
+      {re:/LOWER/, msg:`LOWER makes everything small letters (john smith). For names you want PROPER.`},
+    ]},
+  { type:'formula', topic:'UPPER & LOWER', title:'Clean emails',
+    say:`Emails next. The same person shows up as John.Smith@Mail.COM and john.smith@mail.com, so we email them twice.`,
+    q:`In <b>F2</b>, make the email in B2 all lowercase with no extra spaces.`,
+    target:'F2:F7', ref:'=LOWER(TRIM(B2))', cs:true,
+    lesson:`Email addresses aren't case-sensitive, so the usual standard is all lowercase. <code>LOWER(TRIM(B2))</code> removes stray spaces and lowers every letter, so duplicates now match exactly.`,
+    diag:[
+      {re:/PROPER/, msg:`PROPER capitalises each word, giving John.Smith@Mail.Com. Emails should be all lowercase: use LOWER.`},
+      {re:/UPPER/, msg:`UPPER gives JOHN.SMITH@MAIL.COM. The standard for emails is all lowercase: use LOWER.`},
+      {re:/^=LOWER\(B2\)$/, msg:`Lowercase is right, but rows 2 and 5 have spaces before or after the address. Add TRIM inside LOWER.`},
+    ]},
+  { type:'formula', topic:'LEFT, RIGHT & MID', title:'Signup year',
+    say:`Our Customer IDs look like US-2023-0153. The middle part is the year they signed up. I'd like it in its own column.`,
+    q:`In <b>G2</b>, pull the 4-digit year out of the ID in C2.`,
+    target:'G2:G7', ref:'=MID(C2,4,4)', loose:true,
+    lesson:`<code>MID(text, start, length)</code> takes characters from the middle. In US-2023-0153 the year starts at character 4 (U is 1, S is 2, the dash is 3) and is 4 characters long. MID returns text ("2023"); wrap it in VALUE() if you need a number for calculations.`,
+    diag:[
+      {re:/^=LEFT\(C2/, msg:`LEFT takes characters from the start, which gives the country code (US). The year is in the middle: use MID.`},
+      {re:/^=RIGHT\(C2/, msg:`RIGHT takes characters from the end: that's the sequence number (0153). For the middle, use MID.`},
+      {re:/MID\(C2,3,/, msg:`Close! Starting at 3 picks up the dash. Count again: U is 1, S is 2, the dash is 3, so the year starts at 4.`},
+      {re:/MID\(C2,5,/, msg:`Starting at 5 skips the first digit of the year. Count: U is 1, S is 2, the dash is 3, so the year starts at 4.`},
+    ]},
+  { type:'mcq', topic:'LEN', title:'Proving the spaces',
+    say:`My manager doesn't believe some names have hidden spaces. How can I prove it for cell A2?`,
+    q:`Which check proves A2 has extra spaces?`,
+    opts:[
+      {t:`Compare <code>=LEN(A2)</code> with <code>=LEN(TRIM(A2))</code>. If the first number is bigger, there were extra spaces.`, ok:true,
+       why:`LEN counts every character, spaces included. TRIM removes the extra ones, so if the trimmed length is shorter, the difference is exactly how many extra spaces there were. For "  john SMITH" that's 12 vs 10.`},
+      {t:`Look at the cell carefully.`,
+       why:`Trailing spaces are completely invisible, and leading spaces look like normal alignment. You can't reliably see them.`},
+      {t:`If <code>=TRIM(A2)=A2</code> returns TRUE, there are extra spaces.`,
+       why:`This is backwards. TRUE means TRIM changed nothing, so there were no extra spaces. FALSE would prove they exist.`},
+      {t:`Use <code>=UPPER(A2)</code>.`,
+       why:`UPPER changes letters to capitals. It tells you nothing about spaces.`},
+    ]},
+  { type:'formula', topic:'Joining text', title:'Mailing label',
+    say:`For the campaign tool I need one label per customer, like "John Smith (US)".`,
+    q:`In <b>H2</b>, join the clean name in E2, a space, and the 2-letter country code from C2 in brackets. Expected for row 2: John Smith (US)`,
+    target:'H2:H7', ref:'=E2&" ("&LEFT(C2,2)&")"', cs:true,
+    prefill:{},
+    lesson:`The & operator joins pieces of text. Text you type yourself (the space and the brackets) goes inside double quotes: <code>" ("</code>. <code>CONCAT(E2," (",LEFT(C2,2),")")</code> does the same job.`,
+    diag:[
+      {re:/A2/, msg:`A2 is the raw, messy name. Use the clean name you already made in E2.`},
+      {re:/\(C2\)|&C2&/, msg:`C2 is the whole ID (US-2023-0153). You only need the first 2 characters: LEFT(C2,2).`},
+    ]},
+  { type:'mcq', topic:'Paste as values', title:'Removing the raw columns',
+    say:`Now I want to delete the messy columns A and B and keep only the clean names and emails.`,
+    q:`What should Priya do first?`,
+    opts:[
+      {t:`Copy the clean columns, then Paste Special > Values over them. Then delete A and B.`, ok:true,
+       why:`The clean columns are formulas that read from A and B. Pasting as values swaps each formula for its result, so the clean text no longer depends on the raw data. After that, deleting A and B is safe.`},
+      {t:`Delete columns A and B straight away.`,
+       why:`The formulas in the clean columns still point at A and B. Once those columns are gone, every clean cell turns into #REF!, meaning "this reference no longer exists".`},
+      {t:`Hide columns A and B instead.`,
+       why:`Hiding is safe, but it isn't what Priya asked for. The messy data stays in the file and anyone can unhide it. It's fine as a temporary step, not as the clean-up.`},
+      {t:`Cut the clean columns and paste them over A and B.`,
+       why:`Cutting moves the formulas without changing their references, so they'd now sit in the very cells they read from. That creates circular references.`},
+    ]},
+  ]
+},
+{
+  id:'hr', tab:'HR', company:'Greenfield Logistics', file:'team_review_2026.xlsx',
+  who:'Marcus Webb', role:'HR Manager', ini:'MW',
+  story:`Year-end reviews are coming. I need years of service, review dates, bonus decisions and ratings for the team, plus how many working days we have left this year. In this sheet, today is Thursday 1 October 2026.`,
+  skills:['TODAY & fixed dates','DATEDIF','EOMONTH','NETWORKDAYS','IF','IFS','AND & OR'],
+  cells: hrSheet,
+  tasks:[
+  { type:'mcq', topic:'Dynamic dates', title:'Date signed',
+    say:`I'm signing a contract today. The "Date signed" cell must show today's date and never change after that.`,
+    q:`What should Marcus put in the cell?`,
+    opts:[
+      {t:`Press Ctrl + ; (semicolon).`, ok:true,
+       why:`Ctrl + ; types today's date as a fixed value. It stays the same forever, which is what a signing date needs. Ctrl + Shift + ; does the same for the current time.`},
+      {t:`<code>=TODAY()</code>`,
+       why:`TODAY() is dynamic: it recalculates every time the file opens. Tomorrow the "signing date" would say tomorrow. Use it for things that should move, like "days until the deadline".`},
+      {t:`<code>=NOW()</code>`,
+       why:`NOW() is also dynamic, and includes the time. It changes every time Excel recalculates.`},
+      {t:`<code>=DATE(TODAY())</code>`,
+       why:`DATE needs three arguments (year, month, day), so this gives an error. Even fixed, it would still be dynamic because of TODAY().`},
+    ]},
+  { type:'formula', topic:'Date calculations', title:'Years of service',
+    say:`How many complete years has each person worked here?`,
+    q:`In <b>F2</b>, calculate complete years between the start date in B2 and today. Tip: <code>DATEDIF(start, end, "Y")</code>.`,
+    target:'F2:F7', ref:'=DATEDIF(B2,TODAY(),"Y")', fmt:'int',
+    lesson:`<code>DATEDIF(start, end, "Y")</code> counts complete years. With TODAY() as the end date, it updates every day, so the sheet stays right next year without edits. Subtracting dates gives days; dividing by 365 looks close, but leap years make it drift, as Farid's row shows (2 years and 364 days).`,
+    diag:[
+      {re:/^=TODAY\(\)-B2$/, msg:`Subtracting two dates gives the number of days between them, not years. Use DATEDIF(B2,TODAY(),"Y").`},
+      {re:/\/365/, msg:`Dividing days by 365 ignores leap years. Farid started on 2 Oct 2023: that's 1,095 days, and 1,095 ÷ 365 = exactly 3, but his third anniversary is tomorrow. DATEDIF counts real calendar years.`},
+      {re:/DATEDIF\(TODAY\(\),B2/, msg:`The start date has to come first: DATEDIF(B2, TODAY(), "Y"). With the dates the wrong way round, DATEDIF returns #NUM!.`},
+    ]},
+  { type:'formula', topic:'Working days', title:'Working days left',
+    say:`Finance wants to know how many working days are left this year, counting today. Weekends don't count, and nor do the company holidays in L2:L4.`,
+    q:`In <b>L7</b>, count the working days from today to 31 December 2026, excluding the holidays in L2:L4.`,
+    target:'L7', ref:'=NETWORKDAYS(TODAY(),DATE(2026,12,31),L2:L4)', fmt:'int', mustUse:'NETWORKDAYS',
+    mustUseMsg:`The number is right, but use NETWORKDAYS so it stays right tomorrow and when holidays change.`,
+    lesson:`<code>NETWORKDAYS(start, end, holidays)</code> counts Monday-to-Friday days between two dates, including both ends, then removes any dates listed in the holiday range. With TODAY() as the start, the count drops by itself each working day.`,
+    diag:[
+      {re:/^=NETWORKDAYS\(TODAY\(\),DATE\(2026,12,31\)\)$/, msg:`Close: weekends are excluded, but the 3 company holidays still count as working days. Add L2:L4 as the third argument.`},
+      {re:/^=DATE\(2026,12,31\)-TODAY\(\)/, msg:`This counts calendar days, weekends included. Use NETWORKDAYS to count only working days.`},
+    ]},
+  { type:'formula', topic:'Date calculations', title:'Review due date',
+    say:`Each person's review is due at the end of the month, six months after their start date.`,
+    q:`In <b>G2</b>, find the last day of the month that's 6 months after the start date in B2.`,
+    target:'G2:G7', ref:'=EOMONTH(B2,6)', fmt:'date',
+    lesson:`<code>EOMONTH(date, months)</code> moves forward the given number of months and returns the last day of that month. It handles 28-, 30- and 31-day months and leap years for you. The cell needs a date format, otherwise you'd see a serial number like 43830.`,
+    diag:[
+      {re:/EDATE/, msg:`EDATE moves forward 6 months but keeps the same day of the month (17 Dec, not 31 Dec). Marcus wants the end of the month: that's EOMONTH.`},
+      {re:/\+18[0-3]/, msg:`Adding about 180 days assumes every month has 30 days, so you land on the wrong day. Use EOMONTH(B2,6).`},
+    ]},
+  { type:'formula', topic:'IF', title:'Bonus decision',
+    say:`Anyone with a score of 80 or above gets a bonus.`,
+    q:`In <b>H2</b>, show <b>Bonus</b> if the score in D2 is 80 or more, otherwise <b>No bonus</b>.`,
+    target:'H2:H7', ref:'=IF(D2>=80,"Bonus","No bonus")',
+    lesson:`<code>IF(test, value if true, value if false)</code>. The test <code>D2>=80</code> includes exactly 80 because of the = sign. Text results always go in double quotes.`,
+    diag:[
+      {re:/D2>80/, msg:`Chen Mei scored exactly 80. With > she's left out; "80 or above" needs >=.`},
+      {re:/D2<80/, msg:`Check which way round the result is: when D2<80 is TRUE, the person should get "No bonus", so that has to be the second argument.`},
+    ]},
+  { type:'formula', topic:'IFS', title:'Performance rating',
+    say:`Ratings: 90+ is Excellent, 75 to 89 is Good, 60 to 74 is Fair, and below 60 is Needs support.`,
+    q:`In <b>I2</b>, give each person their rating based on D2. IFS or nested IF both work.`,
+    target:'I2:I7', ref:'=IFS(D2>=90,"Excellent",D2>=75,"Good",D2>=60,"Fair",TRUE,"Needs support")',
+    lesson:`IFS checks each test in order and returns the result for the first one that's TRUE. That's why order matters: start with the highest band. The final <code>TRUE,"Needs support"</code> catches everything else, so a score under 60 doesn't end up as #N/A.`,
+    diag:[
+      {re:/^=IFS\(D2>=60/, msg:`IFS stops at the first test that's TRUE. A score of 92 is also >= 60, so everyone above 60 gets "Fair". Check the highest band first: D2>=90.`},
+      {re:/^=IF\(D2>=60/, msg:`The first test catches too much: 92 is also >= 60. Start with the highest band (D2>=90) and work down.`},
+    ]},
+  { type:'formula', topic:'AND & OR', title:'Remote work',
+    say:`Remote work is allowed if someone has at least 2 years of service AND has taken 10 or fewer days of leave.`,
+    q:`In <b>J2</b>, show <b>Yes</b> or <b>No</b>. Years of service is in F2, leave taken is in C2.`,
+    target:'J2:J7', ref:'=IF(AND(F2>=2,C2<=10),"Yes","No")',
+    lesson:`AND returns TRUE only when every condition is true. Inside IF it lets one test combine several rules. Ben and Farid have exactly 2 years, so the >= matters.`,
+    diag:[
+      {re:/OR\(/, msg:`OR is TRUE if any one condition is true, so almost everyone gets Yes. Marcus needs both rules to pass: use AND.`},
+      {re:/F2>2[,)]/, msg:`Ben and Farid have exactly 2 years. "At least 2" needs >=.`},
+      {re:/C2<10[,)]/, msg:`"10 or fewer" needs <=10, so that 10 days is still allowed.`},
+    ]},
+  { type:'mcq', topic:'AND & OR', title:'Flag for check-in',
+    say:`Last one. I want to flag anyone who works in Sales OR has a score under 60.`,
+    q:`Which formula should go in row 2?`,
+    opts:[
+      {t:`<code>=IF(OR(E2="Sales",D2&lt;60),"Flag","")</code>`, ok:true,
+       why:`OR is TRUE if at least one condition is true, so both Sales staff and anyone under 60 get flagged. The empty quotes "" leave the cell blank for everyone else.`},
+      {t:`<code>=IF(AND(E2="Sales",D2&lt;60),"Flag","")</code>`,
+       why:`AND needs both conditions: only a Sales person with a score under 60 would be flagged. Nobody on this team matches, so nobody gets flagged.`},
+      {t:`<code>=IF(OR(E2=Sales,D2&lt;60),"Flag","")</code>`,
+       why:`Sales has no quotes, so Excel looks for something named Sales, can't find it, and returns #NAME?. Text in a formula always needs double quotes.`},
+      {t:`<code>=OR(E2="Sales",D2&lt;60)</code>`,
+       why:`This test works, but it shows TRUE or FALSE instead of "Flag". Wrapping it in IF lets you choose a clear label.`},
+    ]},
+  ]
+},
+{
+  id:'exec', tab:'Summary', company:'Ledger & Line (final project)', file:'q1_board_summary.xlsx',
+  who:'Rachel Tan', role:'Director, Ledger & Line', ini:'RT', finale:true,
+  story:`Great work this week. Last job: a client wants a one-page Q1 summary for their board. Build the key figures from the monthly data, then help me decide what goes at the top.`,
+  skills:['SUM & MAX','IF status flags','Profit margin','Writing the summary','Final checks'],
+  cells: execSheet,
+  tasks:[
+  { type:'formula', topic:'Functions', title:'Q1 revenue',
+    say:`Start with the headline number.`,
+    q:`In <b>G3</b>, add up the revenue for January to March (B2:B4).`,
+    target:'G3', ref:'=SUM(B2:B4)', fmt:'money', mustUse:'SUM',
+    mustUseMsg:`Right total, but use SUM with a range. It's easier to check and survives inserted rows.`,
+    lesson:`One SUM over a range gives the quarter total. Putting key figures in clearly labelled cells (G2 says what G3 holds) makes the summary easy to check.`, diag:[] },
+  { type:'formula', topic:'IF', title:'Target met?',
+    say:`The board will ask straight away whether we hit our targets.`,
+    q:`In <b>E2</b>, show <b>Met</b> if revenue (B2) is at least the target (D2), otherwise <b>Missed</b>.`,
+    target:'E2:E4', ref:'=IF(B2>=D2,"Met","Missed")',
+    lesson:`A status column turns a comparison into a word anyone can scan. February missed its target, and that will need explaining.`,
+    diag:[ {re:/B2>D2/, msg:`Hitting the target exactly should count as Met, so use >=.`} ]},
+  { type:'formula', topic:'Profit & margin', title:'Q1 profit margin',
+    say:`What share of the quarter's revenue was profit?`,
+    q:`In <b>G5</b>, calculate the Q1 margin: (total revenue − total costs) ÷ total revenue. Revenue is B2:B4 and costs are C2:C4.`,
+    target:'G5', ref:'=(SUM(B2:B4)-SUM(C2:C4))/SUM(B2:B4)', fmt:'pct', prefill:{G3:'=SUM(B2:B4)'},
+    lesson:`Same margin formula as the café, but with totals. You can reuse G3 for revenue: <code>=(G3-SUM(C2:C4))/G3</code>. Averaging the three monthly margins would give a slightly different answer, because months with more revenue should count for more.`,
+    diag:[
+      {re:/^=SUM\(B2:B4\)-SUM\(C2:C4\)\/SUM\(B2:B4\)$/, msg:`Division happens before subtraction. Put the profit part in brackets: (SUM(B2:B4)-SUM(C2:C4))/SUM(B2:B4).`},
+      {re:/^=G3-SUM\(C2:C4\)\/G3$/, msg:`Division happens before subtraction. Put the profit part in brackets: (G3-SUM(C2:C4))/G3.`},
+      {re:/\/SUM\(C2:C4\)|\/\(SUM\(C2:C4\)\)/, msg:`Dividing by costs gives markup, not margin. Margin divides by revenue.`},
+    ]},
+  { type:'formula', topic:'Functions', title:'Best month',
+    say:`And our strongest month?`,
+    q:`In <b>G8</b>, return the highest monthly revenue from B2:B4.`,
+    target:'G8', ref:'=MAX(B2:B4)', fmt:'money', mustUse:'MAX',
+    mustUseMsg:`Right number, but if the data changes you'd have to spot the biggest again yourself. MAX does it for you.`,
+    lesson:`MAX returns the largest value in a range. MIN, AVERAGE and COUNT work the same way, which makes them quick building blocks for any summary.`, diag:[] },
+  { type:'mcq', topic:'Executive summary', title:'What goes on top',
+    say:`Board members will read this for about two minutes. What should they see first?`,
+    q:`What belongs at the top of the summary?`,
+    opts:[
+      {t:`A few key figures with plain labels (Q1 revenue, margin, targets met 2 of 3) and a one-line takeaway.`, ok:true,
+       why:`An executive summary leads with the answer. Busy readers need the main numbers and what they mean straight away. Detail can follow below or in an appendix for anyone who wants it.`},
+      {t:`The full monthly table so they can check everything themselves.`,
+       why:`Raw data makes the reader do the analysis. That's your job; the table can go in an appendix.`},
+      {t:`An explanation of every formula you used.`,
+       why:`Your method matters for checking the work, not for the board's decision. Keep it in the file or a note.`},
+      {t:`A colourful chart without labels or numbers.`,
+       why:`A chart can help, but without labels the reader has to guess what it shows. Key numbers first; a clearly labelled chart can support them.`},
+    ]},
+  { type:'mcq', topic:'Executive summary', title:'The missed month',
+    say:`February missed its target by $3,100. How should we handle that in the summary?`,
+    q:`What's the best approach?`,
+    opts:[
+      {t:`State it plainly with the number, and add context if you have it (Q1 overall still beat target).`, ok:true,
+       why:`Boards trust summaries that report bad news clearly. Q1 revenue of $142,700 beat the combined target of $140,000, so the full picture is still positive, and saying so is honest context, not spin.`},
+      {t:`Leave it out, since the quarter overall was fine.`,
+       why:`Someone will find it in the data, and then the whole summary looks less trustworthy. Report it.`},
+      {t:`Show only the months that met target.`,
+       why:`Picking only the good months gives a misleading picture. A summary has to cover the whole period.`},
+      {t:`Round February's revenue up so the gap looks smaller.`,
+       why:`Changing figures to look better is misreporting. Numbers in a summary must match the source data exactly.`},
+    ]},
+  { type:'mcq', topic:'Final checks', title:'Before you send',
+    say:`Before this goes to the client, what do you check?`,
+    q:`Which check matters most before sending?`,
+    opts:[
+      {t:`Click into the key formulas to confirm their ranges, scan for errors like #DIV/0! or #REF!, and check number formats are consistent.`, ok:true,
+       why:`A formula can run without errors and still be wrong, for example a SUM that misses a row. Checking ranges, error values and formats (money as money, margins as %) catches most problems before anyone else sees them.`},
+      {t:`Make the fonts and colours match the client's brand.`,
+       why:`Nice to have, but a well-styled wrong number is still wrong. Accuracy first, polish after.`},
+      {t:`Nothing: if Excel shows no errors, the numbers are correct.`,
+       why:`No error message only means the formula could run. An off-by-one range or wrong cell reference gives a clean-looking wrong answer.`},
+      {t:`Delete the source data so the file is smaller.`,
+       why:`Your formulas read from the source data. Deleting it would break them (#REF!) and remove the evidence behind your numbers.`},
+    ]},
+  ]
+}
+];
+
+/* ================= STATE ================= */
+const PTS=[100,60,30,0];
+const TOTAL_TASKS = SITS.reduce((s,x)=>s+x.tasks.length,0);
+const MAXPTS = TOTAL_TASKS*100;
+const RANKS = [[0,'Intern'],[40,'Junior Analyst'],[60,'Data Analyst'],[75,'Senior Analyst'],[90,'Lead Analyst']];
+const rankFor = pct => RANKS.filter(r=>pct>=r[0]).pop()[1];
+const newState = () => ({screen:'welcome', s:0, t:0, res:{}, drafts:{}, ui:{}});
+let state = newState();
+try{
+  let saved=JSON.parse(localStorage.getItem('ledger-line-v2')||'null');
+  if(!saved){ const old=JSON.parse(localStorage.getItem('ledger-line-v1')||'null');
+    if(old && old.res){ const mv=o=>{ const n={}; for(const [k,v] of Object.entries(o||{})){ const [a,b]=k.split('-').map(Number); n[a===1&&b>=7 ? `1-${b+6}` : k]=v; } return n; };
+      old.res=mv(old.res); old.drafts=mv(old.drafts); if(old.s===1&&old.t>=7) old.t+=6; saved=old; } }
+  if(saved && saved.res) state=Object.assign(newState(),saved);
+}catch(e){}
+const save = () => { try{ localStorage.setItem('ledger-line-v2', JSON.stringify(state)); }catch(e){} };
+
+const key = (s,t) => `${s}-${t}`;
+const R = (s,t) => state.res[key(s,t)] || (state.res[key(s,t)]={wrong:0,done:false,pts:0,picks:[],revealed:false});
+const score = () => Object.values(state.res).reduce((a,r)=>a+(r.done?r.pts:0),0);
+const sitScore = s => SITS[s].tasks.reduce((a,_,t)=>{ const r=state.res[key(s,t)]; return a+(r&&r.done?r.pts:0); },0);
+const sitDone = s => SITS[s].tasks.filter((_,t)=>{ const r=state.res[key(s,t)]; return r&&r.done; }).length;
+const starsFor = (pts,max) => { const p=pts/max*100; return p>=90?3:p>=70?2:p>=40?1:0; };
+const starStr = n => '★'.repeat(n)+'☆'.repeat(3-n);
+
+/* sheet as it stands at task t (earlier answers filled in) */
+function cellsFor(s,t){
+  const sit=SITS[s], cells=JSON.parse(JSON.stringify(sit.cells));
+  for(let i=0;i<t;i++){
+    const tk=sit.tasks[i];
+    if(tk.type!=='formula') continue;
+    expandTarget(tk.target).forEach((a,k)=>{ cells[a]=Object.assign(cells[a]||{}, {f:shiftFormula(tk.ref,k), fmt:tk.fmt}); });
+  }
+  const tk=sit.tasks[t];
+  if(tk && tk.prefill) for(const [a,f] of Object.entries(tk.prefill)) cells[a]=Object.assign(cells[a]||{}, {f});
+  return cells;
+}
+
+/* ================= CHECKING ================= */
+const ERR_EXPLAIN = {
+  '#NAME?':`Excel doesn't recognise a name in your formula. Check the function spelling, and put any text (like "Bonus") inside double quotes.`,
+  '#VALUE!':`One of the values is the wrong type, for example maths on text, or MID with a start below 1.`,
+  '#DIV/0!':`Your formula divides by zero or by an empty cell. Check the cell after the /.`,
+  '#N/A':`None of the conditions matched, so IFS had nothing to return. Add TRUE,"…" at the end as a catch-all.`,
+  '#CIRC!':`The formula refers to its own cell, directly or through a range (a circular reference). Point only to the input cells.`,
+  '#NUM!':`The numbers don't work for this function. For DATEDIF, the start date must come before the end date, and the unit must be "Y", "M" or "D".`,
+  '#ARGS':`A function has the wrong number of arguments. Check what goes inside the brackets, separated by commas.`,
+  '#SYNTAX':`One of the cells your formula uses has a broken formula.`,
+};
+
+function same(a,b,tk){
+  if(isErr(a)||isErr(b)) return isErr(a)&&isErr(b)&&a.e===b.e;
+  if(typeof b==='number'){
+    if(tk.loose && typeof a==='string' && a.trim()!=='' && !isNaN(+a)) a=+a;
+    if(typeof a!=='number') return false;
+    return Math.abs(a-b) <= 1e-6*Math.max(1,Math.abs(b));
+  }
+  if(typeof b==='string'){
+    if(tk.loose && typeof a==='number') a=String(a);
+    if(typeof a!=='string') return false;
+    return tk.cs ? a===b : a.toLowerCase()===b.toLowerCase();
+  }
+  return a===b;
+}
+
+function runFormula(s,t,formula){
+  const tk=SITS[s].tasks[t], base=cellsFor(s,t), addrs=expandTarget(tk.target);
+  const u=JSON.parse(JSON.stringify(base)), e=JSON.parse(JSON.stringify(base));
+  addrs.forEach((a,k)=>{ u[a]=Object.assign({},u[a]||{}, {f:shiftFormula(formula,k), fmt:tk.fmt}); e[a]=Object.assign({},e[a]||{}, {f:shiftFormula(tk.ref,k), fmt:tk.fmt}); delete u[a].v; delete e[a].v; });
+  const ub=new Book(u), eb=new Book(e);
+  return addrs.map(a=>({a, got:ub.get(a), exp:eb.get(a)}));
+}
+
+function checkFormula(s,t,raw){
+  const tk=SITS[s].tasks[t];
+  let f=raw.trim();
+  if(!f) return {kind:'syntax', msg:`Type a formula first.`};
+  if(f[0]!=='=') return {kind:'syntax', msg:`Without = at the start, Excel stores what you typed as plain text and calculates nothing. Every formula starts with =.`};
+  try{ parse(f.slice(1)); } catch(x){ if(x instanceof SynErr) return {kind:'syntax', msg:`Excel would reject this formula. ${x.msg}`}; throw x; }
+  const rows=runFormula(s,t,f), n=norm(f);
+  const okAll=rows.every(r=>same(r.got,r.exp,tk));
+  const first=rows.find(r=>!same(r.got,r.exp,tk));
+  const cmp = first ? `In ${first.a} your formula gives ${plain(first.got,tk.fmt)}; the expected result is ${plain(first.exp,tk.fmt)}.` : '';
+  if(okAll){
+    if(!hasRef(f)) return {kind:'wrong', rows, msg:`That's the right number, but it's typed in rather than calculated. If the data changes, this cell won't update. Build it from cell references.`};
+    if(tk.mustUse && !n.includes(tk.mustUse+'(')) return {kind:'wrong', rows, msg:tk.mustUseMsg};
+    if(tk.mustRef && !new RegExp('\\$?'+tk.mustRef.replace(/(\d+)/,'\\$?$1')).test(n)) return {kind:'wrong', rows, msg:tk.mustRefMsg};
+    return {kind:'right', rows};
+  }
+  if(tk.mustRef && !new RegExp('\\$?'+tk.mustRef.replace(/(\d+)/,'\\$?$1')).test(n) && rows[0] && same(rows[0].got,rows[0].exp,tk)) return {kind:'wrong', rows, msg:tk.mustRefMsg, cmp};
+  for(const d of (tk.diag||[])) if(d.re.test(n)) return {kind:'wrong', rows, msg:d.msg, cmp};
+  const errRow=rows.find(r=>isErr(r.got));
+  if(errRow) return {kind:'wrong', rows, msg:`${errRow.a} shows ${fmtVal(errRow.got)}. ${ERR_EXPLAIN[errRow.got.e]||''}`, cmp};
+  if(rows.length>1 && same(rows[0].got,rows[0].exp,tk)) return {kind:'wrong', rows, msg:`Row ${splitAddr(rows[0].a).r} is right, but the rows below aren't. When the formula is filled down, every reference without $ moves down a row. Check whether one of your references should stay fixed ($), or whether a cell is pointing at the wrong column.`, cmp};
+  const g=first.got, x=first.exp;
+  if(typeof g==='string'&&typeof x==='string'){
+    if(g.toLowerCase()===x.toLowerCase()) return {kind:'wrong', rows, msg:`The letters are right but the capitals aren't. Check which case function you need: PROPER, UPPER or LOWER.`, cmp};
+    if(g.replace(/\s/g,'')===x.replace(/\s/g,'')) return {kind:'wrong', rows, msg:`The text is nearly right but the spaces are off. Look for extra spaces (TRIM removes them) or a missing " " between pieces.`, cmp};
+  }
+  if(typeof g==='number'&&typeof x==='number'){
+    if(Math.abs(g-x*100)<1e-6*Math.max(1,Math.abs(x*100))) return {kind:'wrong', rows, msg:`Your answer is 100 times too big. The cell is formatted as a percentage, which multiplies by 100 for display, so leave out *100.`, cmp};
+    if(Math.abs(g+x)<1e-9 && x!==0) return {kind:'wrong', rows, msg:`Right size, wrong sign. Check the order of the subtraction (new − old).`, cmp};
+  }
+  return {kind:'wrong', rows, msg:`Not quite. Re-read the task and check which cells your formula uses.`, cmp};
+}
+
+function award(r){ r.done=true; r.pts=PTS[Math.min(r.wrong,3)]; }
+
+/* ================= RENDER ================= */
+const $ = s => document.querySelector(s);
+const app = $('#app');
+
+function topbar(){
+  const sc=score(), pct=sc/MAXPTS*100, done=Object.values(state.res).filter(r=>r.done).length;
+  return `<header class="top">
+    <div class="brand"><div class="mark" aria-hidden="true">fx</div><div><h1>Ledger &amp; Line</h1><small>Excel data prep simulation</small></div></div>
+    <div class="stat"><b>${sc.toLocaleString()}</b><span>of ${MAXPTS.toLocaleString()} pts</span></div>
+    <div class="stat"><b>${done}/${TOTAL_TASKS}</b><span>tasks done</span></div>
+    <span class="rank" title="Your rank is based on your share of all points">${rankFor(pct)}</span>
+  </header>`;
+}
+
+function renderTabs(){
+  const el=$('#tabs');
+  el.innerHTML = `<button class="tab ${state.screen==='welcome'?'on':''}" data-go="welcome">Start</button>` +
+    SITS.map((x,i)=>{
+      const on=['intro','task','sitdone'].includes(state.screen)&&state.s===i;
+      const d=sitDone(i), n=x.tasks.length;
+      const meta = d===n ? `<span class="stars" aria-label="${starsFor(sitScore(i),n*100)} of 3 stars">${starStr(starsFor(sitScore(i),n*100))}</span>` : `<small>${d}/${n}</small>`;
+      return `<button class="tab ${on?'on':''}" data-sit="${i}">${esc(x.tab)} ${meta}</button>`;
+    }).join('') +
+    `<button class="tab ${state.screen==='results'?'on':''}" data-go="results">Results</button>`;
+}
+
+function whoBlock(sit, text){
+  return `<div class="who"><div class="avatar" aria-hidden="true">${sit.ini}</div><div><div class="who-name">${esc(sit.who)}</div><div class="who-role">${esc(sit.role)} · ${esc(sit.company)}</div></div></div>
+    <p class="say">${text}</p>`;
+}
+
+function dots(s){
+  return `<div class="dots" role="list" aria-label="Tasks">${SITS[s].tasks.map((tk,t)=>{
+    const r=state.res[key(s,t)]; let c='';
+    if(r&&r.done) c = r.pts===100?'full':r.pts===0?'zero':'part';
+    return `<button class="dot ${c} ${state.screen==='task'&&state.t===t?'on':''}" data-task="${t}" title="Task ${t+1}: ${esc(tk.title)}" aria-label="Task ${t+1}: ${esc(tk.title)}"></button>`;
+  }).join('')}</div>`;
+}
+
+/* --- workbook pane --- */
+function bookPane(s,t,opts={}){
+  const sit=SITS[s], tk=sit.tasks[t];
+  if(tk && (tk.type==='sort'||tk.type==='filter') && state.screen==='task') return dataTablePane(s,t);
+  let cells = cellsFor(s, opts.full ? sit.tasks.length : t);
+  const targets = new Set(tk && tk.type==='formula' && state.screen==='task' ? expandTarget(tk.target) : []);
+  const r = tk ? state.res[key(s,t)] : null;
+  const marks = {};
+  const last = state.ui.last && state.ui.last.k===key(s,t) ? state.ui.last : null;
+  if(tk && tk.type==='formula' && state.screen==='task'){
+    const f = r && r.done ? (r.formula||tk.ref) : (last ? last.formula : null);
+    if(f){
+      try{
+        parse(f.slice(1));
+        expandTarget(tk.target).forEach((a,k)=>{ cells[a]=Object.assign({},cells[a]||{},{f:shiftFormula(f,k),fmt:tk.fmt}); delete cells[a].v; });
+        if(last && !(r&&r.done)) last.rows.forEach(x=>marks[x.a]=same(x.got,x.exp,tk)?'ok':'no');
+        else expandTarget(tk.target).forEach(a=>marks[a]='ok');
+      }catch(e){}
+    }
+  }
+  const book=new Book(cells);
+  let maxC=1,maxR=1;
+  for(const a of [...Object.keys(cells),...targets]){ const p=splitAddr(a); maxC=Math.max(maxC,p.c); maxR=Math.max(maxR,p.r); }
+  maxC=Math.max(maxC+1,6); maxR=Math.max(maxR+1,8);
+  const sel = state.ui.sel && cells ? state.ui.sel : null;
+  let h=`<table class="grid" aria-label="Worksheet"><thead><tr><th class="corner"></th>`;
+  for(let c=1;c<=maxC;c++) h+=`<th scope="col">${colStr(c)}</th>`;
+  h+=`</tr></thead><tbody>`;
+  for(let rr=1;rr<=maxR;rr++){
+    h+=`<tr><th scope="row">${rr}</th>`;
+    for(let c=1;c<=maxC;c++){
+      const a=colStr(c)+rr, cell=cells[a];
+      let v = cell ? book.get(a) : null;
+      const cls=[];
+      if(cell&&cell.h) cls.push('hdr');
+      if(typeof v==='number') cls.push('num');
+      if(isErr(v)) cls.push('err');
+      if(targets.has(a) && !marks[a]) cls.push('target');
+      if(marks[a]) cls.push(marks[a]);
+      if(sel===a) cls.push('sel');
+      const txt = typeof v==='string' ? showSpaces(v) : esc(fmtVal(v, cell&&cell.fmt));
+      h+=`<td class="${cls.join(' ')}" data-addr="${a}">${txt}</td>`;
+    }
+    h+=`</tr>`;
+  }
+  h+=`</tbody></table>`;
+  let selTxt='';
+  if(sel){ const c=cells[sel]; selTxt = c ? (c.f ? c.f : (typeof c.v==='number' && c.fmt==='date' ? fmtVal(c.v,'date') : typeof c.v==='number' ? fmtGeneral(c.v) : String(c.v))) : ''; }
+  const status = s===3 ? `<span>Today in this workbook: <b>Thu 01-Oct-2026</b></span>` : '';
+  const isF = tk && tk.type==='formula' && state.screen==='task';
+  return `<section class="panel book" aria-label="Workbook">
+    <div class="bookhead"><div class="filename">${esc(sit.file)} <span>· ${esc(sit.company)}</span></div>
+      <div class="ro" aria-label="Selected cell"><span class="namebox">${sel||'—'}</span><span class="fxlabel">fx</span><span class="rocontent">${esc(selTxt)}</span></div></div>
+    <div class="gridwrap">${h}</div>
+    <div class="statusbar">${isF?`<span class="legend"><span class="sw"></span> your answer goes here</span><span class="mouse-only">Click a cell while typing to insert its reference · Shift-click to make a range</span><span class="touch-only">Tap a cell while typing to insert its reference</span>`:'<span>Click or tap any cell to see what it contains</span>'}${status}</div>
+  </section>`;
+}
+
+function dataTablePane(s,t){
+  const tk=SITS[s].tasks[t], k=key(s,t);
+  const ui = state.ui.tbl && state.ui.tbl.k===k ? state.ui.tbl : (state.ui.tbl={k,sort:null,dir:null,f:{Region:'All',Product:'All',Units:'All',Revenue:'All'}});
+  let rows=RETAIL.slice();
+  const F=ui.f;
+  rows=rows.filter(r=>(F.Region==='All'||r.Region===F.Region)&&(F.Product==='All'||r.Product===F.Product)&&(F.Units==='All'||r.Units>=+F.Units)&&(F.Revenue==='All'||r.Revenue>=+F.Revenue));
+  if(ui.sort){ const c=ui.sort, d=ui.dir==='desc'?-1:1; rows.sort((a,b)=> (a[c]<b[c]?-1:a[c]>b[c]?1:0)*d); }
+  const opts={
+    Region:['All','East','North','South','West'].map(v=>[v,v==='All'?'(All)':v]),
+    Product:['All',...[...new Set(RETAIL.map(r=>r.Product))].sort()].map(v=>[v,v==='All'?'(All)':v]),
+    Units:[['All','(All)'],['10','≥ 10'],['20','≥ 20'],['30','≥ 30']],
+    Revenue:[['All','(All)'],['500','≥ $500'],['1000','≥ $1,000']],
+  };
+  const isNum = c => c==='Units'||c==='Revenue'||c==='Date';
+  let h=`<table class="grid" aria-label="Sales data"><thead><tr><th class="corner"></th>`;
+  RETAIL_COLS.forEach(c=>{
+    const on=ui.sort===c.k;
+    h+=`<th class="colname" scope="col"><div class="ctl"><span>${c.k}</span><span>
+      <button class="sortb ${on&&ui.dir==='asc'?'on':''}" data-sort="${c.k}" data-dir="asc" title="${isNum(c.k)?'Smallest to largest':'A to Z'}" aria-label="Sort ${c.k} ${isNum(c.k)?'smallest to largest':'A to Z'}">↑</button>
+      <button class="sortb ${on&&ui.dir==='desc'?'on':''}" data-sort="${c.k}" data-dir="desc" title="${isNum(c.k)?'Largest to smallest':'Z to A'}" aria-label="Sort ${c.k} ${isNum(c.k)?'largest to smallest':'Z to A'}">↓</button></span></div></th>`;
+  });
+  h+=`</tr><tr class="filters"><th class="corner"></th>`;
+  RETAIL_COLS.forEach(c=>{
+    h+= opts[c.k] ? `<th class="fcell"><select id="flt-${c.k}" data-filter="${c.k}" aria-label="Filter ${c.k}">${opts[c.k].map(([v,l])=>`<option value="${v}" ${F[c.k]===v?'selected':''}>${l}</option>`).join('')}</select></th>` : `<th class="fcell"></th>`;
+  });
+  h+=`</tr></thead><tbody>`;
+  rows.forEach((r,i)=>{
+    h+=`<tr><th scope="row">${RETAIL.indexOf(r)+2}</th>`+RETAIL_COLS.map(c=>`<td class="${typeof r[c.k]==='number'?'num':''}">${esc(fmtVal(r[c.k],c.fmt))}</td>`).join('')+`</tr>`;
+  });
+  if(!rows.length) h+=`<tr><th></th><td colspan="5" class="muted">No rows match these filters.</td></tr>`;
+  h+=`</tbody></table>`;
+  const active=Object.entries(F).filter(([,v])=>v!=='All').map(([k])=>k);
+  return `<section class="panel book" aria-label="Workbook">
+    <div class="bookhead"><div class="filename">${esc(SITS[s].file)} <span>· ${tk.type==='sort'?'Sort':'Filter'} mode</span></div>
+      <button class="btn" data-act="clear-tbl" style="margin-left:auto;padding:5px 12px">Clear sort &amp; filters</button></div>
+    <div class="gridwrap">${h}</div>
+    <div class="statusbar"><span><b>${rows.length}</b> of ${RETAIL.length} records found</span>
+      <span>Sorted by: <b>${ui.sort ? ui.sort+(ui.dir==='asc'?' ↑':' ↓') : 'none'}</b></span>
+      <span>Filters: <b>${active.length?active.join(', '):'none'}</b></span></div>
+  </section>`;
+}
+
+/* --- task card --- */
+function taskCard(s,t){
+  const sit=SITS[s], tk=sit.tasks[t], r=R(s,t), k=key(s,t);
+  const cur = r.done ? r.pts : PTS[Math.min(r.wrong,3)];
+  let body='';
+  if(tk.type==='mcq'){
+    body = `<div class="opts" role="group" aria-label="Answers">${tk.opts.map((o,i)=>{
+      const picked=r.picks.includes(i), cls = picked ? (o.ok?'right':'wrong') : (r.done&&o.ok?'right':'');
+      const why = picked && !o.ok ? `<div class="why"><b>Why not:</b> ${o.why}</div>` : '';
+      return `<button class="opt ${cls}" data-opt="${i}" ${r.done||picked?'disabled':''}><span class="key">${'ABCD'[i]}</span>${o.t}${why}</button>`;
+    }).join('')}</div>`;
+    if(r.done){
+      const ok=tk.opts.find(o=>o.ok);
+      const others=tk.opts.filter(o=>!o.ok);
+      body += `<div class="fb good" role="status"><span class="tag">${r.wrong===0?'Correct':'Got it'} · +${r.pts}</span><p>${ok.why}</p>
+        <details class="others" ${r.wrong===0?'':'open'}><summary>Why the other answers are wrong</summary><ul>${others.map(o=>`<li><b>${o.t}</b><br>${o.why}</li>`).join('')}</ul></details></div>`;
+    } else if(r.wrong) {
+      body += `<div class="fb bad" role="status"><span class="tag">Not this one</span><p>Read why above, then try another answer. This task is now worth ${cur} points.</p></div>`;
+    }
+  }
+  if(tk.type==='formula'){
+    const target=expandTarget(tk.target)[0];
+    const draft = r.done ? (r.formula||tk.ref) : (state.drafts[k] ?? '=');
+    const fill = tk.target.includes(':') ? `<p class="hint-line">Filled down to ${tk.target.split(':')[1]} automatically.</p>` : '';
+    body = `<label class="fxrow" for="fx-${k}"><span class="namebox">${target}</span><span class="fxlabel">fx</span>
+      <input id="fx-${k}" data-fx="${k}" value="${esc(draft)}" autocomplete="off" autocapitalize="off" spellcheck="false" ${r.done?'readonly':''} aria-label="Formula for ${target}"></label>${fill}`;
+    const fb = state.ui.fb && state.ui.fb.k===k ? state.ui.fb : null;
+    if(r.done){
+      body += `<div class="fb good" role="status"><span class="tag">${r.revealed?'Answer shown · +0':(r.wrong===0?'Correct':'Got it')+' · +'+r.pts}</span>
+        ${r.revealed?`<p>One formula that works: <code>${esc(tk.ref)}</code></p>`:''}
+        <div class="${r.revealed?'lesson':''}"><p>${tk.lesson}</p></div></div>`;
+    } else if(fb){
+      body += `<div class="fb ${fb.kind==='syntax'?'info':'bad'}" role="status"><span class="tag">${fb.kind==='syntax'?'Check the formula':'Not yet'}</span><p>${esc(fb.msg)}</p>${fb.cmp?`<p class="cmp">${esc(fb.cmp)}</p>`:''}
+        ${fb.kind==='syntax'?'<p class="cmp">Formula errors like this don\'t cost points.</p>':''}</div>`;
+    }
+  }
+  if(tk.type==='sort'||tk.type==='filter'){
+    const fb = state.ui.fb && state.ui.fb.k===k ? state.ui.fb : null;
+    if(r.done) body = `<div class="fb good" role="status"><span class="tag">${r.wrong===0?'Correct':'Got it'} · +${r.pts}</span><p>${tk.lesson}</p></div>`;
+    else if(fb) body = `<div class="fb bad" role="status"><span class="tag">Not yet</span><p>${esc(fb.msg)}</p></div>`;
+  }
+  const actions=[];
+  if(!r.done && tk.type!=='mcq') actions.push(`<button class="btn primary" data-act="check">Check</button>`);
+  if(!r.done && tk.type==='formula' && r.wrong>=2) actions.push(`<button class="btn ghost" data-act="reveal">Show answer (0 pts)</button>`);
+  if(r.done) actions.push(`<button class="btn primary" data-act="next">${t<sit.tasks.length-1?'Next task':'Finish sheet'}</button>`);
+  return `<section class="panel pad" aria-label="Task">
+    ${whoBlock(sit, esc(tk.say))}
+    <div style="margin-top:16px" class="eyebrow"><span>Task ${t+1} of ${sit.tasks.length}</span><span class="topic">${esc(tk.topic)}</span></div>
+    <h2>${esc(tk.title)}</h2>
+    <p class="prompt">${tk.q}</p>
+    ${body}
+    <div class="actions">${actions.join('')}<span class="worth">${r.done?`earned ${r.pts}`:`worth ${cur}`}</span></div>
+    ${dots(s)}
+  </section>`;
+}
+
+function introCard(s){
+  const sit=SITS[s];
+  return `<section class="panel pad">
+    <div class="eyebrow"><span>${sit.finale?'Final project':'Situation '+(s+1)+' of 4'}</span><span class="topic">${sit.tasks.length} tasks</span></div>
+    <h2>${esc(sit.company)}</h2>
+    ${whoBlock(sit, esc(sit.story))}
+    <h3 style="margin-top:16px">Skills on this sheet</h3>
+    <div class="chips">${sit.skills.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>
+    <div class="actions"><button class="btn primary" data-act="begin">${sitDone(s)?'Continue':'Start'}</button>
+      ${sitDone(s)===sit.tasks.length?`<button class="btn" data-act="sitdone">See sheet results</button>`:''}</div>
+    ${dots(s)}
+  </section>`;
+}
+
+function sitDoneCard(s){
+  const sit=SITS[s], pts=sitScore(s), max=sit.tasks.length*100, st=starsFor(pts,max);
+  const nextLabel = s<SITS.length-1 ? `Next: ${SITS[s+1].company}` : 'See final results';
+  return `<section class="panel pad">
+    <div class="eyebrow"><span>Sheet complete</span><span class="topic">${esc(sit.company)}</span></div>
+    <h2>${pts} of ${max} points</h2>
+    <div class="bigstars" aria-label="${st} of 3 stars">${'★'.repeat(st)}<span class="off">${'★'.repeat(3-st)}</span></div>
+    <ul class="tasklist">${sit.tasks.map((tk,t)=>{ const r=state.res[key(s,t)]||{}; const p=r.done?r.pts:0; return `<li><span>${esc(tk.title)} <span class="muted">· ${esc(tk.topic)}</span></span><span class="${p===100?'pts-f':p===0?'pts-0':'pts-p'}">${r.done?p:'—'}</span></li>`; }).join('')}</ul>
+    <div class="actions"><button class="btn primary" data-act="nextsit">${nextLabel}</button><button class="btn" data-act="redo">Replay this sheet</button></div>
+  </section>`;
+}
+
+function welcome(){
+  return `<section class="hero">
+    <div>
+      <div class="eyebrow"><span>Preparing data for analysis with Microsoft Excel</span></div>
+      <h2>Your first week as a <em>junior analyst</em>.</h2>
+      <p class="lede">You've just joined Ledger &amp; Line, a small data consultancy. This week you'll visit four clients, each with a messy spreadsheet problem, and finish with an executive summary for your director. Every task uses a skill from the course.</p>
+      <div class="route">
+        ${SITS.map((x,i)=>`<div class="route-row"><span class="cellref">${x.finale?'Final':'Day '+(i+1)}</span><div><b>${esc(x.company)}</b><span>${esc(x.skills.join(' · '))}</span></div></div>`).join('')}
+      </div>
+      <div class="actions"><button class="btn primary" data-act="start">${score()?'Continue':'Start day one'}</button>
+      ${score()?`<button class="btn ghost" data-act="reset">Start over</button>`:''}</div>
+    </div>
+    <div class="panel pad">
+      <h3>How it works</h3>
+      <ul class="rules">
+        <li><span class="k">=fx</span><span><b>Formula tasks.</b> Type a real Excel formula for the first cell. The game fills it down like the fill handle and checks every row. Click or tap cells while typing to insert references.</span></li>
+        <li><span class="k">A–D</span><span><b>Decision tasks.</b> Pick an answer. If it's wrong, you'll see exactly why, and you can try again. When you get it right, you can read why each other option fails.</span></li>
+        <li><span class="k">↑↓</span><span><b>Sort and filter tasks.</b> Use the controls on a live table.</span></li>
+        <li><span class="k">100</span><span><b>Scoring.</b> First try 100, second 60, third 30. After two misses on a formula you can reveal the answer for 0. Formula typos that Excel would reject don't cost points.</span></li>
+      </ul>
+      <h3 style="margin-top:18px">Ranks</h3>
+      <table class="ranks"><tbody>${RANKS.slice().reverse().map(([p,n])=>`<tr><td>${n}</td><td>${p?p+'%+':'start'}</td></tr>`).join('')}</tbody></table>
+      <p class="muted" style="font-size:13px;margin:10px 0 0">Your progress is saved in this browser.</p>
+    </div>
+  </section>`;
+}
+
+function results(){
+  const sc=score(), pct=sc/MAXPTS*100, rank=rankFor(pct);
+  const weak=[];
+  SITS.forEach((x,s)=>x.tasks.forEach((tk,t)=>{ const r=state.res[key(s,t)]; if(!r||!r.done||r.pts<60) weak.push({s,t,tk,r}); }));
+  const topics=[...new Set(weak.map(w=>w.tk.topic))];
+  return `<section class="hero">
+    <div>
+      <div class="eyebrow"><span>Week report</span></div>
+      <h2>${esc(rank)}</h2>
+      <p class="lede">You scored <b>${sc.toLocaleString()}</b> of ${MAXPTS.toLocaleString()} points (${pct.toFixed(0)}%) across ${TOTAL_TASKS} tasks.</p>
+      <div class="summary-grid">${SITS.map((x,i)=>{ const p=sitScore(i), m=x.tasks.length*100, st=starsFor(p,m); return `<button class="sumcard" data-sit="${i}" style="text-align:left;cursor:pointer"><div class="n">${esc(x.company)}</div><div class="bigstars" style="font-size:22px">${'★'.repeat(st)}<span class="off">${'★'.repeat(3-st)}</span></div><div class="muted">${p} / ${m} · ${sitDone(i)}/${x.tasks.length} done</div></button>`; }).join('')}</div>
+    </div>
+    <div class="panel pad">
+      <h3>What to review</h3>
+      ${topics.length ? `<p class="muted" style="margin:0 0 8px">Topics where you scored under 60 or haven't finished yet:</p><div class="chips">${topics.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>
+      <ul class="tasklist">${weak.slice(0,12).map(w=>`<li><span>${esc(w.tk.title)} <span class="muted">· ${esc(SITS[w.s].tab)}</span></span><span><button class="btn ghost" data-jump="${w.s}-${w.t}">Open</button></span></li>`).join('')}</ul>` : `<p>Nothing to review: every task scored 60 or more. Try replaying a sheet for a perfect three stars.</p>`}
+      <div class="actions"><button class="btn" data-act="reset">Play again from the start</button></div>
+    </div>
+  </section>`;
+}
+
+function render(){
+  const s=state.s, t=state.t;
+  let main='';
+  if(state.screen==='welcome') main=welcome();
+  else if(state.screen==='results') main=results();
+  else {
+    const left = state.screen==='intro' ? introCard(s) : state.screen==='sitdone' ? sitDoneCard(s) : taskCard(s,t);
+    const right = state.screen==='task' ? bookPane(s,t) : bookPane(s, state.screen==='sitdone'?SITS[s].tasks.length:0, {full: state.screen==='sitdone'});
+    main = `<div class="desk">${left}${right}</div>`;
+  }
+  const active=document.activeElement, aid=active&&active.id, pos=active&&active.selectionStart;
+  app.innerHTML = topbar()+main;
+  renderTabs();
+  const tgt=document.querySelector('.gridwrap td.target, .gridwrap td.ok, .gridwrap td.no');
+  if(tgt){ const gw=tgt.closest('.gridwrap'); const l=tgt.offsetLeft, r=l+tgt.offsetWidth; if(r>gw.scrollLeft+gw.clientWidth||l<gw.scrollLeft+40) gw.scrollLeft=Math.max(0,l-80); const tp=tgt.offsetTop, bt=tp+tgt.offsetHeight; if(bt>gw.scrollTop+gw.clientHeight) gw.scrollTop=bt-gw.clientHeight+20; }
+  if(aid){ const el=document.getElementById(aid); if(el){ el.focus(); if(pos!=null && el.setSelectionRange) try{ el.setSelectionRange(pos,pos); }catch(e){} } }
+  save();
+}
+
+/* ================= EVENTS ================= */
+function go(screen, s=state.s, t=0){ state.screen=screen; state.s=s; state.t=t; state.ui.fb=null; state.ui.last=null; state.ui.sel=null; render(); window.scrollTo({top:0}); }
+function firstOpen(s){ const i=SITS[s].tasks.findIndex((_,t)=>!(state.res[key(s,t)]||{}).done); return i<0?0:i; }
+
+document.addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.go) return go(b.dataset.go);
+  if(b.dataset.sit!==undefined) return go('intro', +b.dataset.sit);
+  if(b.dataset.task!==undefined){ return go('task', state.s, +b.dataset.task); }
+  if(b.dataset.jump){ const [s,t]=b.dataset.jump.split('-').map(Number); return go('task',s,t); }
+  if(b.dataset.opt!==undefined){
+    const s=state.s,t=state.t,tk=SITS[s].tasks[t],r=R(s,t),i=+b.dataset.opt;
+    if(r.done||r.picks.includes(i)) return;
+    r.picks.push(i);
+    if(tk.opts[i].ok) award(r); else r.wrong++;
+    return render();
+  }
+  if(b.dataset.sort){ const ui=state.ui.tbl; ui.sort=b.dataset.sort; ui.dir=b.dataset.dir; return render(); }
+  const act=b.dataset.act;
+  if(act==='start'){ const s=SITS.findIndex((_,i)=>sitDone(i)<SITS[i].tasks.length); return go('intro', s<0?0:s); }
+  if(act==='begin') return go('task', state.s, firstOpen(state.s));
+  if(act==='sitdone') return go('sitdone', state.s);
+  if(act==='nextsit') return state.s<SITS.length-1 ? go('intro', state.s+1) : go('results');
+  if(act==='redo'){ SITS[state.s].tasks.forEach((_,t)=>{ delete state.res[key(state.s,t)]; delete state.drafts[key(state.s,t)]; }); return go('intro', state.s); }
+  if(act==='reset'){ state=newState(); try{ localStorage.removeItem('ledger-line-v2'); localStorage.removeItem('ledger-line-v1'); }catch(x){} return go('welcome'); }
+  if(act==='next'){
+    const s=state.s, t=state.t;
+    if(t<SITS[s].tasks.length-1) return go('task', s, t+1);
+    return go('sitdone', s);
+  }
+  if(act==='clear-tbl'){ state.ui.tbl=null; return render(); }
+  if(act==='check') return doCheck();
+  if(act==='reveal'){ const r=R(state.s,state.t); r.revealed=true; r.done=true; r.pts=0; r.formula=SITS[state.s].tasks[state.t].ref; state.ui.fb=null; return render(); }
+});
+
+document.addEventListener('change', e=>{
+  const el=e.target;
+  if(el.dataset && el.dataset.filter){ state.ui.tbl.f[el.dataset.filter]=el.value; render(); }
+});
+document.addEventListener('input', e=>{
+  const el=e.target;
+  if(el.dataset && el.dataset.fx) state.drafts[el.dataset.fx]=el.value;
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && e.target.dataset && e.target.dataset.fx){ e.preventDefault(); doCheck(); }
+});
+
+let lastIns=null;
+document.addEventListener('pointerdown', e=>{
+  const td=e.target.closest('td[data-addr]'); if(!td) return;
+  const a=td.dataset.addr, inp=document.activeElement;
+  if(inp && inp.dataset && inp.dataset.fx && !inp.readOnly){
+    e.preventDefault();
+    const v=inp.value, p=inp.selectionStart??v.length, q=inp.selectionEnd??p;
+    if(e.shiftKey && lastIns && lastIns.end===p && v.slice(lastIns.start,lastIns.end)===lastIns.addr){
+      const ins=lastIns.addr+':'+a;
+      inp.value=v.slice(0,lastIns.start)+ins+v.slice(lastIns.end);
+      lastIns={start:lastIns.start,end:lastIns.start+ins.length,addr:ins};
+    } else {
+      inp.value=v.slice(0,p)+a+v.slice(q);
+      lastIns={start:p,end:p+a.length,addr:a};
+    }
+    inp.setSelectionRange(lastIns.end,lastIns.end);
+    state.drafts[inp.dataset.fx]=inp.value;
+    return;
+  }
+  state.ui.sel=a; render();
+});
+
+function doCheck(){
+  const s=state.s,t=state.t,tk=SITS[s].tasks[t],r=R(s,t),k=key(s,t);
+  if(r.done) return;
+  if(tk.type==='formula'){
+    const raw=(document.getElementById('fx-'+k)||{}).value ?? state.drafts[k] ?? '';
+    state.drafts[k]=raw;
+    const res=checkFormula(s,t,raw);
+    if(res.kind==='syntax'){ state.ui.fb={k,kind:'syntax',msg:res.msg}; state.ui.last=null; return render(); }
+    state.ui.last={k,formula:raw.trim(),rows:res.rows};
+    if(res.kind==='right'){ r.formula=raw.trim(); award(r); state.ui.fb=null; }
+    else { r.wrong++; state.ui.fb={k,kind:'wrong',msg:res.msg,cmp:res.cmp}; }
+    return render();
+  }
+  const ui=state.ui.tbl||{sort:null,dir:null,f:{Region:'All',Product:'All',Units:'All',Revenue:'All'}};
+  let msg=null;
+  if(tk.type==='sort'){
+    if(!ui.sort) msg=`Nothing is sorted yet. Use the arrows in the Revenue header.`;
+    else if(ui.sort==='Revenue' && ui.dir==='asc') msg=`This is smallest to largest, so the weakest line is on top. Dana wants the highest revenue first: sort largest to smallest (↓).`;
+    else if(ui.sort==='Units') msg=`That's sorted by units, not revenue. The Notebook sold 65 units but earned only $552.50, so high volume doesn't always mean high revenue. Sort the Revenue column.`;
+    else if(ui.sort!=='Revenue') msg=`You sorted by ${ui.sort}. Dana asked for the highest revenue first, so sort the Revenue column.`;
+    else if(Object.values(ui.f).some(v=>v!=='All')) msg=`The sort is right, but a filter is hiding some rows. Dana wants every line ranked. Clear the filters.`;
+  } else {
+    const F=ui.f;
+    if(F.Product!=='All'||F.Revenue!=='All') msg=`Remove the filter on ${F.Product!=='All'?'Product':'Revenue'}. Dana didn't ask for it, and it's hiding rows she needs.`;
+    else if(F.Region!=='North') msg = F.Region==='All' ? `Start with the Region filter: only North rows should show.` : `That's the ${F.Region} store. The delivery is for North.`;
+    else if(F.Units==='All') msg=`Region is right, but small orders are still showing, like 15 water bottles. Add a filter on Units: 20 or more.`;
+    else if(F.Units==='10') msg=`≥ 10 still lets through rows under 20, like 15 water bottles. Dana said 20 or more.`;
+    else if(F.Units==='30') msg=`≥ 30 hides rows that should stay, like 24 backpacks and 22 desk lamps. Dana said 20 or more.`;
+  }
+  if(msg){ r.wrong++; state.ui.fb={k,kind:'wrong',msg}; } else { award(r); state.ui.fb=null; }
+  render();
+}
+
+/* boot (keeps a player's place if the page is updated while open) */
+window.claude?.hot?.snapshot?.(()=>({state}));
+function start(data){ if(data && data.state) state=data.state; render(); }
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+
+/* exposed for self-test */
+window.__sim = {SITS, runFormula, checkFormula, cellsFor, Book, expandTarget, fmtVal};
+</script>
+
+</body>
+</html>

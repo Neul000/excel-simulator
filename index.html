@@ -70,7 +70,7 @@ button{font:inherit;color:inherit}
 h2{font-family:var(--f-display);font-weight:700;font-size:22px;line-height:1.2;letter-spacing:-.01em;margin:6px 0 10px;text-wrap:balance}
 h3{font-family:var(--f-display);font-weight:700;font-size:17px;margin:0 0 8px}
 .prompt{margin:0 0 14px}
-.prompt code,.fb code,.lesson code,.opt code{font-family:var(--f-mono);font-size:.92em;background:var(--sunk);border:1px solid var(--line);padding:0 4px;border-radius:3px;white-space:nowrap}
+.prompt code,.fb code,.lesson code,.opt code{font-family:var(--f-mono);font-size:.92em;background:var(--sunk);border:1px solid var(--line);padding:0 4px;border-radius:3px;overflow-wrap:anywhere}
 
 .dots{display:flex;gap:4px;flex-wrap:wrap;margin:14px 0 2px}
 .dot{width:22px;height:16px;border:1px solid var(--line-strong);background:var(--surface);border-radius:2px;cursor:pointer;padding:0}
@@ -145,6 +145,7 @@ table.grid{border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabula
 .grid td.ok{background:var(--good-soft);color:var(--ink)}
 .grid td.no{background:var(--bad-soft)}
 .grid td.err{color:var(--bad);font-weight:600}
+.grid td.spill{box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
 .grid td.fx{color:var(--ink)}
 .grid td.fx::before{content:"";}
 .sp{color:var(--warn);opacity:.9}
@@ -342,22 +343,45 @@ function cmpv(a,b){
   return a<b?-1:a>b?1:0;
 }
 
+function critFn(c){
+  if(typeof c==='number') return x=> typeof x==='number' ? x===c : (typeof x==='string' && x.trim()!=='' && +x===c);
+  if(typeof c==='boolean') return x=> x===c;
+  const m=/^(<=|>=|<>|<|>|=)?([\s\S]*)$/.exec(String(c)); const op=m[1]||'', val=m[2];
+  const isNum = val.trim()!=='' && !isNaN(+val);
+  if(isNum && op!=='' ){ const v=+val; return x=>{ if(typeof x!=='number') return op==='<>'; return op==='<'?x<v: op==='>'?x>v: op==='<='?x<=v: op==='>='?x>=v: op==='='?x===v : x!==v; }; }
+  if(isNum && op===''){ const v=+val; return x=> typeof x==='number' ? x===v : (typeof x==='string' && x.trim()!=='' && +x===v); }
+  if(op==='<'||op==='>'||op==='<='||op==='>='){ const v=val.toLowerCase(); return x=>{ if(typeof x!=='string') return false; const a=x.toLowerCase(); return op==='<'?a<v: op==='>'?a>v: op==='<='?a<=v : a>=v; }; }
+  const re=new RegExp('^'+val.replace(/[.+^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*').replace(/\?/g,'.')+'$','i');
+  const eq = x=> (val==='' ? (x===null||x==='') : (x!==null && re.test(str(x))));
+  return op==='<>' ? (x=>!eq(x)) : eq;
+}
+
 class Book{
-  constructor(cells){ this.cells=cells; this.cache={}; this.stack=new Set(); }
+  constructor(cells){ this.cells=cells; this.cache={}; this.stack=new Set(); this.spilled={};
+    const fs=Object.keys(cells).filter(a=>cells[a] && cells[a].f!==undefined);
+    fs.filter(a=>/TEXTSPLIT/i.test(cells[a].f)).forEach(a=>this.get(a));
+  }
   get(addr){
     const c=this.cells[addr];
-    if(!c) return null;
+    if(!c || (c.f===undefined && (c.v===undefined||c.v===''))) return (addr in this.spilled) ? this.spilled[addr] : (c ? (c.v===undefined?null:c.v) : null);
     if(c.f===undefined) return c.v===undefined ? null : c.v;
     if(addr in this.cache) return this.cache[addr];
     if(this.stack.has(addr)) return ERR('#CIRC!');
     this.stack.add(addr);
     let v;
-    try{ v=this.sc(parse(c.f.slice(1))); } catch(x){ v=ERR(x instanceof SynErr ? '#SYNTAX' : '#ERROR!'); }
+    try{ const raw=this.ev(parse(c.f.slice(1))); v = (raw && typeof raw==='object' && 'arr' in raw) ? this.spill(addr, raw.arr) : (isRange(raw) ? (raw.r.length===1 ? raw.r[0] : ERR('#VALUE!')) : raw); } catch(x){ v=ERR(x instanceof SynErr ? '#SYNTAX' : '#ERROR!'); }
     this.stack.delete(addr);
     this.cache[addr]=v;
     return v;
   }
-  sc(n){ const v=this.ev(n); if(isRange(v)) return v.r.length===1 ? v.r[0] : ERR('#VALUE!'); return v; }
+  spill(addr, arr){
+    const o=splitAddr(addr), list=[];
+    arr.forEach((row,ri)=>row.forEach((val,ci)=>{ if(ri||ci) list.push([colStr(o.c+ci)+(o.r+ri), val]); }));
+    for(const [a] of list){ const c=this.cells[a]; if(c && (c.f!==undefined || (c.v!==undefined && c.v!==''))) return ERR('#SPILL!'); }
+    for(const [a,val] of list) this.spilled[a]=val;
+    return arr[0][0];
+  }
+  sc(n){ const v=this.ev(n); if(v && typeof v==='object' && 'arr' in v) return v.arr[0][0]; if(isRange(v)) return v.r.length===1 ? v.r[0] : ERR('#VALUE!'); return v; }
   range(a,b){
     const A=splitAddr(a), B=splitAddr(b), r=[];
     for(let row=Math.min(A.r,B.r); row<=Math.max(A.r,B.r); row++)
@@ -475,6 +499,54 @@ class Book{
         return ERR('#NUM!');
       }
       case 'YEARFRAC': { const s=dateArg(S(0)), e=dateArg(S(1)); if(isErr(s)) return s; if(isErr(e)) return e; return Math.abs(e-s)/365.25; }
+      case 'SUMIF': case 'COUNTIF': case 'AVERAGEIF': {
+        const isC = n.n==='COUNTIF';
+        if(need(2)) return ERR('#ARGS');
+        const rv=self.ev(A[0]); if(!isRange(rv)) return ERR('#VALUE!');
+        const c=S(1); if(isErr(c)) return c;
+        const test=critFn(c);
+        let vals=rv.r;
+        if(!isC && has(2)){ const sv=self.ev(A[2]); if(!isRange(sv)) return ERR('#VALUE!'); vals=sv.r; }
+        let sum=0, cnt=0;
+        for(let i=0;i<rv.r.length;i++){ if(!test(rv.r[i])) continue; if(isC){ cnt++; continue; } const v=vals[i]; if(isErr(v)) return v; if(typeof v==='number'){ sum+=v; cnt++; } }
+        if(isC) return cnt;
+        if(n.n==='SUMIF') return sum;
+        return cnt ? sum/cnt : ERR('#DIV/0!');
+      }
+      case 'TEXTJOIN': {
+        if(need(3)) return ERR('#ARGS');
+        const d=T(0); if(isErr(d)) return d; const ig=bool(S(1)); if(isErr(ig)) return ig;
+        const parts=[];
+        for(const a of A.slice(2)){ const v=self.ev(a); const l=isRange(v)?v.r:[v]; for(const x of l){ if(isErr(x)) return x; const t=str(x); if(ig && t==='') continue; parts.push(t);} }
+        return parts.join(d);
+      }
+      case 'TEXTSPLIT': {
+        if(need(2)) return ERR('#ARGS');
+        const t=T(0); if(isErr(t)) return t;
+        const cd=has(1)?T(1):null, rd=has(2)?T(2):null, ig=has(3)?bool(S(3)):false;
+        if(cd==='' ) return ERR('#VALUE!');
+        let rows = rd ? t.split(rd) : [t];
+        let arr = rows.map(r=> (cd===null?[r]:r.split(cd)).filter(x=>!(ig && x==='')));
+        const w=Math.max(...arr.map(r=>r.length)); arr=arr.map(r=>{ while(r.length<w) r.push(ERR('#N/A')); return r; });
+        return {arr};
+      }
+      case 'NETWORKDAYS.INTL': {
+        if(need(2)) return ERR('#ARGS');
+        const s=dateArg(S(0)), e=dateArg(S(1)); if(isErr(s)) return s; if(isErr(e)) return e;
+        let wk=[0,0,0,0,0,1,1]; /* Mon..Sun, 1 = weekend */
+        if(has(2)){ const w=S(2);
+          if(typeof w==='string'){ if(!/^[01]{7}$/.test(w)) return ERR('#VALUE!'); wk=w.split('').map(Number); }
+          else { const n=num(w); if(isErr(n)) return n;
+            const pairs={1:[5,6],2:[6,0],3:[0,1],4:[1,2],5:[2,3],6:[3,4],7:[4,5]};
+            if(pairs[n]){ wk=[0,0,0,0,0,0,0]; pairs[n].forEach(i=>wk[i]=1); }
+            else if(n>=11&&n<=17){ wk=[0,0,0,0,0,0,0]; wk[n-11]=1; }
+            else return ERR('#NUM!'); } }
+        const hol=new Set();
+        if(has(3)){ const v=self.ev(A[3]); const l=isRange(v)?v.r:[v]; for(const x of l){ if(x===null) continue; const d=dateArg(x); if(!isErr(d)) hol.add(d); } }
+        const lo=Math.min(s,e), hi=Math.max(s,e); let c=0;
+        for(let d=lo; d<=hi; d++){ const w=(fromSerial(d).wd+6)%7; if(!wk[w]&&!hol.has(d)) c++; }
+        return s<=e ? c : -c;
+      }
       case 'NETWORKDAYS': {
         if(need(2)) return ERR('#ARGS');
         const s=dateArg(S(0)), e=dateArg(S(1)); if(isErr(s)) return s; if(isErr(e)) return e;
@@ -1053,7 +1125,539 @@ const SITS = [
   ]
 },
 {
-  id:'exec', tab:'Summary', company:'Ledger & Line (final project)', file:'q1_board_summary.xlsx',
+  id:'summit', tab:'Summit', company:'Asia Library Summit', file:'summit_registrations.xlsx',
+  who:'Rina Kamal', role:'Events Coordinator', ini:'RK',
+  story:`Our summit starts tomorrow and the name badges go to the printer tonight. Registrations came through an online form, so the names are a mess. I already split most of them into Title, First name and Last name with Text to Columns, but one speaker registered late and her full name is still in one cell, and another speaker has just signed up. Can you finish the list so every badge looks the same?`,
+  skills:['LEFT, MID & RIGHT','Text to Columns','TEXTSPLIT','PROPER & UPPER','TRIM','CONCAT & CONCATENATE','TEXTJOIN','Regional settings'],
+  cells: sheet([
+    ['Full name (as typed)','Title','First name','Last name','Country (raw)','First (clean)','Last (badge)','Country','Badge text'],
+    ['Professor Nadia Hassan','','','','my'],
+    ['Dr aisyah RAHMAN','Dr','aisyah','RAHMAN','my '],
+    ['Mr Daniel lim','Mr','Daniel','lim','sg'],
+    ['Ms PRIYA menon','Ms','PRIYA','menon',' IN'],
+    ['Dr farah TAN','Dr','farah','TAN','my'],
+    ['Prof ahmad ZAKARIA','Prof','ahmad','ZAKARIA','id'],
+  ], {}, { A9:{v:'Dr Kevin Ong'}, A8:{v:'Late registration ↓',h:true}, A11:{v:'Welcome slide',h:true} }),
+  tasks:[
+  { type:'mcq', topic:'Why split text?', title:'One cell, three facts',
+    say:`Why can't we just keep "Professor Nadia Hassan" in one cell? It looks fine to me.`,
+    q:`What's the main benefit of splitting a full name into Title, First name and Last name columns?`,
+    opts:[
+      {t:`You can filter, count and sort by each part, for example count all the professors, or start emails with "Dear Nadia".`, ok:true,
+       why:`When the title is part of a longer entry, a filter on the Title column can't find it. In separate columns, each part can be filtered, counted, sorted and reused on its own.`},
+      {t:`It makes the file smaller.`,
+       why:`Splitting actually adds columns. The benefit is being able to analyse and reuse each part, not saving space.`},
+      {t:`Excel can't store more than two words in one cell.`,
+       why:`A cell can hold thousands of characters. Splitting is about analysis, not a storage limit.`},
+      {t:`It fixes the capital letters automatically.`,
+       why:`Splitting moves text into new columns exactly as it was typed. Fixing capitals needs PROPER, UPPER or LOWER.`},
+    ]},
+  { type:'formula', topic:'LEFT', title:'Pull out the title',
+    say:`Let's do the late entry by hand. First, the title.`,
+    q:`In <b>B2</b>, use LEFT to take the first <b>9</b> characters of A2 ("Professor").`,
+    target:'B2', ref:'=LEFT(A2,9)', cs:true,
+    lesson:`<code>LEFT(text, number of characters)</code> takes characters from the start of the entry. "Professor" is 9 letters, so <code>=LEFT(A2,9)</code>. Depending on your computer's region, Excel may want a semicolon instead of a comma: <code>=LEFT(A2;9)</code>. This game accepts both.`,
+    diag:[
+      {re:/LEFT\(A2,10\)/, msg:`10 characters includes the space after "Professor". The space is invisible, but it's there, and it would break a filter for "Professor". Use 9.`},
+      {re:/^=RIGHT\(A2/, msg:`RIGHT counts from the end of the entry, which is where the last name is. The title is at the start: use LEFT.`},
+      {re:/^=LEFT\(A2\)$/, msg:`Without a number, LEFT returns only 1 character ("P"). Add how many characters you want: 9.`},
+    ]},
+  { type:'formula', topic:'MID', title:'Pull out the first name',
+    say:`Now her first name, Nadia. It's in the middle, so it's trickier.`,
+    q:`In <b>C2</b>, use MID to extract "Nadia" from A2. Count carefully: "Professor" is characters 1–9 and the space is character 10.`,
+    target:'C2', ref:'=MID(A2,11,5)', cs:true,
+    lesson:`<code>MID(text, start position, number of characters)</code>. "Nadia" starts at character 11 (9 letters + 1 space + 1) and is 5 characters long. MID is the only one of the three that needs a start position, because the text you want isn't at either end.`,
+    diag:[
+      {re:/MID\(A2,10,/, msg:`Character 10 is the space after "Professor", so the result starts with a space. Start at 11.`},
+      {re:/MID\(A2,11,6\)/, msg:`6 characters picks up the space after "Nadia". You can't see it, but "Nadia " won't match "Nadia". Use 5.`},
+      {re:/MID\(A2,5,11\)|MID\(A2,5,/, msg:`The arguments are in the wrong order. MID needs the start position second and the number of characters third: MID(A2, 11, 5).`},
+      {re:/^=LEFT\(A2|^=RIGHT\(A2/, msg:`LEFT and RIGHT only take text from the ends. "Nadia" is in the middle, so use MID.`},
+    ]},
+  { type:'formula', topic:'RIGHT', title:'Pull out the last name',
+    say:`And the last name.`,
+    q:`In <b>D2</b>, use RIGHT to take the last 6 characters of A2 ("Hassan").`,
+    target:'D2', ref:'=RIGHT(A2,6)', cs:true,
+    lesson:`<code>RIGHT(text, number of characters)</code> counts backwards from the end of the entry. "Hassan" is the last 6 characters. Now the late entry matches the other rows.`,
+    diag:[
+      {re:/RIGHT\(A2,7\)/, msg:`7 characters includes the space before "Hassan". Use 6.`},
+      {re:/^=LEFT\(A2/, msg:`LEFT counts from the start of the entry. The last name is at the end: use RIGHT.`},
+    ]},
+  { type:'mcq', topic:'MID', title:'What does each number mean?',
+    say:`My colleague asked me what the 11 and the 5 in your MID formula mean.`,
+    q:`In <code>=MID(A2,11,5)</code>, what do 11 and 5 mean?`,
+    opts:[
+      {t:`Start at character 11, then take 5 characters.`, ok:true,
+       why:`MID's second argument is where to start counting, and the third is how many characters to return from there. Spaces count as characters.`},
+      {t:`Take characters 5 to 11.`,
+       why:`MID doesn't take a "from–to" range. The first number is the start position, the second is how many characters to take.`},
+      {t:`Take 11 characters, starting at character 5.`,
+       why:`That swaps the two arguments. In MID, the start position always comes before the number of characters.`},
+      {t:`Row 11, column 5.`,
+       why:`MID works inside one text entry. The numbers count characters, not rows or columns.`},
+    ]},
+  { type:'mcq', topic:'Text to Columns', title:'2,000 more names',
+    say:`Next year we expect 2,000 registrations, with names of every length. Do I write LEFT, MID and RIGHT for each one?`,
+    q:`What's the most practical way to split 2,000 full names into separate columns?`,
+    opts:[
+      {t:`Use Data > Text to Columns, and split by the space character.`, ok:true,
+       why:`Text to Columns splits every entry at a delimiter (here a space) in one go, whatever the length of each name. LEFT, MID and RIGHT with fixed numbers only work when every entry has the same length. Watch out for names with more than one space, such as "Wei Jie Tan", which would split into extra columns.`},
+      {t:`Write a separate LEFT, MID and RIGHT formula for every row, counting the characters each time.`,
+       why:`It would work, but with names of different lengths you'd need different numbers in each row. That's slow and easy to get wrong across 2,000 rows.`},
+      {t:`Copy the LEFT(A2,9) formula down the whole column.`,
+       why:`9 characters is right for "Professor", but "Dr" is 2 characters and "Mr" is 2. Fixed numbers break as soon as lengths change.`},
+      {t:`Use TRIM.`,
+       why:`TRIM only removes extra spaces. It doesn't split text into columns.`},
+    ]},
+  { type:'mcq', topic:'Text to Columns', title:'Inside the wizard',
+    say:`I opened Data > Text to Columns on the Full name column. The wizard asks me to choose a data type first.`,
+    q:`To split names like "Dr farah TAN" into three columns, what should Rina choose?`,
+    opts:[
+      {t:`Delimited, with Space as the delimiter. Then set a Destination so the original column isn't overwritten.`, ok:true,
+       why:`The parts are separated by a character (a space), so Delimited is right. By default the wizard writes the results over the original column and the columns to its right, so pick an empty Destination cell (or insert empty columns first) to keep the original names.`},
+      {t:`Fixed width, with a break after character 3.`,
+       why:`Fixed width only works when every part starts at the same position in every entry. "Dr" is 2 characters but "Prof" is 4, so the breaks would land in the wrong places.`},
+      {t:`Delimited, with Comma as the delimiter.`,
+       why:`There are no commas in these names, so nothing would be split. The words are separated by spaces.`},
+      {t:`Delimited, with Tab as the delimiter.`,
+       why:`Tab is the default for data pasted from some systems, but these names are separated by spaces.`},
+    ]},
+  { type:'formula', topic:'TEXTSPLIT', title:'A split that updates itself',
+    say:`Another speaker just registered: "Dr Kevin Ong" in A9. This time, use a formula instead of the wizard.`,
+    q:`In <b>B9</b>, use TEXTSPLIT to split A9 at each space. One formula fills B9, C9 and D9.`,
+    target:'B9', spillCells:['C9','D9'], ref:'=TEXTSPLIT(A9," ")', cs:true,
+    lesson:`<code>TEXTSPLIT(text, delimiter)</code> returns several values at once, and Excel <b>spills</b> them into the cells to the right (highlighted). It's newer than Text to Columns (Excel 365 and Excel 2024). If any of those cells already holds something, you get #SPILL! instead.`,
+    diag:[
+      {re:/TEXTSPLIT\(A9\)$/, msg:`TEXTSPLIT needs a second argument: the delimiter to split at. Here that's a space, written as " ".`},
+      {re:/TEXTSPLIT\(A9,""\)/, msg:`The delimiter is empty. Put a space between the quotes: " ".`},
+      {re:/TEXTSPLIT\(A9,","\)/, msg:`There are no commas in "Dr Kevin Ong", so nothing is split. The words are separated by spaces: " ".`},
+      {re:/^=LEFT|^=MID|^=RIGHT/, msg:`That gets one part at a time. TEXTSPLIT can return all three parts with one formula.`},
+    ]},
+  { type:'mcq', topic:'Text to Columns vs TEXTSPLIT', title:'Which one updates?',
+    say:`Kevin emailed: his surname is actually "Ong-Lee". I'll fix it in A9. What happens to the split columns?`,
+    q:`After Rina edits A9, which split updates by itself?`,
+    opts:[
+      {t:`The TEXTSPLIT formula in row 9. Text to Columns results (rows 3–7) are fixed values and won't change.`, ok:true,
+       why:`TEXTSPLIT is a formula, so it recalculates whenever its source changes. Text to Columns is a one-off action that writes plain values, so to update it you'd have to run the wizard again.`},
+      {t:`Both update automatically.`,
+       why:`Text to Columns doesn't leave formulas behind, only typed values. They won't change when the source changes.`},
+      {t:`Only the Text to Columns results update.`,
+       why:`It's the other way round. The wizard writes fixed values; the formula is what updates.`},
+      {t:`Neither. You must run both again.`,
+       why:`TEXTSPLIT updates by itself. Only Text to Columns needs to be run again.`},
+    ]},
+  { type:'formula', topic:'PROPER', title:'Tidy first names',
+    say:`The first names are a mix: "aisyah", "PRIYA", "farah". Badges need them looking normal.`,
+    q:`In <b>F2</b>, make the first name in C2 start with a capital letter and continue in lowercase. It fills down to F7.`,
+    target:'F2:F7', ref:'=PROPER(C2)', cs:true,
+    lesson:`<code>PROPER</code> capitalises the first letter of each word and makes the rest lowercase: "aisyah" becomes "Aisyah", and "PRIYA" becomes "Priya". It needs only one argument: the cell to work on.`,
+    diag:[
+      {re:/UPPER/, msg:`UPPER makes every letter a capital (AISYAH). For first names, you want only the first letter capitalised: PROPER.`},
+      {re:/LOWER/, msg:`LOWER makes everything lowercase (aisyah). Names need a capital at the start: PROPER.`},
+      {re:/\(A2\)/, msg:`A2 is the full name. Use the first name in column C.`},
+    ]},
+  { type:'formula', topic:'UPPER', title:'Surnames in capitals',
+    say:`House style for our badges: surnames in capital letters, so they're easy to read across a room.`,
+    q:`In <b>G2</b>, turn the last name in D2 into all capital letters.`,
+    target:'G2:G7', ref:'=UPPER(D2)', cs:true,
+    lesson:`<code>UPPER</code> converts every letter to a capital: "lim" becomes "LIM". Entries that were already in capitals, like "RAHMAN", stay the same, so the column is now consistent.`,
+    diag:[
+      {re:/PROPER/, msg:`PROPER gives "Hassan" and "Lim". The badge style needs the whole surname in capitals: UPPER.`},
+    ]},
+  { type:'formula', topic:'TRIM & UPPER', title:'Country codes',
+    say:`Country codes came in as "my ", " IN", "sg"… I need clean capitals like MY, IN, SG.`,
+    q:`In <b>H2</b>, remove any extra spaces from E2 <i>and</i> turn it into capitals, in one formula.`,
+    target:'H2:H7', ref:'=UPPER(TRIM(E2))', cs:true,
+    lesson:`Nesting does both jobs at once: TRIM removes the spaces, then UPPER capitalises what's left. The order doesn't change the result here, so <code>=TRIM(UPPER(E2))</code> works too.`,
+    diag:[
+      {re:/^=UPPER\(E2\)$/, msg:`The capitals are right, but "my " and " IN" still have a space (look for the orange dots). Put TRIM inside: UPPER(TRIM(E2)).`},
+      {re:/^=TRIM\(E2\)$/, msg:`The spaces are gone, but "my" is still lowercase. Wrap it in UPPER.`},
+    ]},
+  { type:'mcq', topic:'CONCAT', title:'Where did the spaces go?',
+    say:`I tried to build the badge text with =CONCAT(B2,F2,G2) and got something odd.`,
+    q:`What does <code>=CONCAT(B2,F2,G2)</code> return for Nadia, and how do you fix it?`,
+    opts:[
+      {t:`"ProfessorNadiaHASSAN". Add the spaces as their own arguments: =CONCAT(B2," ",F2," ",G2).`, ok:true,
+       why:`CONCAT joins exactly what you give it, with nothing in between. A space is text, so it goes inside double quotes as its own argument, between the cells.`},
+      {t:`"Professor Nadia HASSAN". CONCAT adds spaces automatically.`,
+       why:`CONCAT never adds spaces. You must include them yourself.`},
+      {t:`An error. Fix it by typing spaces between the commas: =CONCAT(B2, F2, G2).`,
+       why:`Spaces between arguments are ignored. They're just layout in the formula, not text in the result. The space has to be in quotes: " ".`},
+      {t:`"Professor, Nadia, HASSAN". Remove the commas to fix it.`,
+       why:`The commas separate the arguments; they don't appear in the result. Without them, Excel can't read the formula.`},
+    ]},
+  { type:'formula', topic:'CONCAT', title:'Badge text',
+    say:`Now the badge line itself: title, first name, surname.`,
+    q:`In <b>I2</b>, join B2, F2 and G2 with a space between each. Expected for row 2: Professor Nadia HASSAN`,
+    target:'I2:I7', ref:'=CONCAT(B2," ",F2," ",G2)', cs:true,
+    lesson:`<code>=CONCAT(B2," ",F2," ",G2)</code> joins the cells with a space (in double quotes) between each. <code>=B2&" "&F2&" "&G2</code> gives the same result. You may also meet the older CONCATENATE function, which does the same job.`,
+    diag:[
+      {re:/CONCAT\(B2,F2,G2\)/, msg:`Without spaces you get "ProfessorNadiaHASSAN". Add " " between the cells.`},
+      {re:/C2|D2/, msg:`C2 and D2 still have the messy capitals. Use the cleaned columns F (first name) and G (surname).`},
+      {re:/A2/, msg:`A2 is the original full name. Build the badge from the clean parts: B2, F2 and G2.`},
+    ]},
+  { type:'mcq', topic:'CONCATENATE', title:'CONCAT or CONCATENATE?',
+    say:`An old template from last year's summit uses CONCATENATE instead of CONCAT. Is that a problem?`,
+    q:`What's the main difference between CONCATENATE and CONCAT?`,
+    opts:[
+      {t:`CONCATENATE is the older version. It still works, but it only accepts single cells, while CONCAT can also take a range like F2:H2.`, ok:true,
+       why:`Both join text the same way, so the old template will keep working. CONCAT, added in Excel 2019, is the newer version and can take ranges. Microsoft keeps CONCATENATE so older files don't break.`},
+      {t:`CONCATENATE adds spaces automatically.`,
+       why:`Neither function adds spaces. With both, you add " " yourself.`},
+      {t:`CONCATENATE only works with numbers.`,
+       why:`It joins text and numbers, exactly like CONCAT.`},
+      {t:`CONCATENATE has been removed, so old files show #NAME?.`,
+       why:`It hasn't been removed. It's still supported for compatibility.`},
+    ]},
+  { type:'formula', topic:'TEXTJOIN', title:'Welcome slide',
+    say:`For the welcome slide I need all the speakers' first names in one line, separated by commas: "Nadia, Aisyah, …"`,
+    q:`In <b>B11</b>, use TEXTJOIN to join the clean first names F2:F7 with a comma and a space (", ") between them, skipping any empty cells.`,
+    target:'B11', ref:'=TEXTJOIN(", ",TRUE,F2:F7)', cs:true,
+    lesson:`<code>TEXTJOIN(delimiter, ignore_empty, text…)</code> puts the delimiter between every item, and it accepts a whole range. With CONCAT you'd have to type ", " between every single cell. TRUE means empty cells are skipped, so you don't get ", ," gaps.`,
+    diag:[
+      {re:/TEXTJOIN\(",",/, msg:`Close: there's no space after the commas ("Nadia,Aisyah,…"). Use ", " with a space inside the quotes.`},
+      {re:/TEXTJOIN\(F2:F7/, msg:`The delimiter comes first, then TRUE or FALSE, then the cells: TEXTJOIN(", ", TRUE, F2:F7).`},
+      {re:/C2:C7/, msg:`Column C has the messy capitals ("aisyah"). Use the clean first names in F2:F7.`},
+      {re:/^=CONCAT/, msg:`CONCAT doesn't add anything between the items, so you'd get "NadiaAisyahDaniel…". TEXTJOIN adds a delimiter for you.`},
+    ]},
+  { type:'mcq', topic:'TEXTJOIN', title:'TRUE or FALSE?',
+    say:`Suppose Daniel cancels and I clear his first name, F4. What does the second argument of TEXTJOIN change?`,
+    q:`With F4 empty, what does <code>=TEXTJOIN(", ",FALSE,F2:F7)</code> return?`,
+    opts:[
+      {t:`"Nadia, Aisyah, , Priya, Farah, Ahmad", with an empty gap where Daniel was.`, ok:true,
+       why:`FALSE means "don't ignore empty cells", so the empty F4 still gets a delimiter on each side. With TRUE, Excel skips it and the list stays clean.`},
+      {t:`"Nadia, Aisyah, Priya, Farah, Ahmad"`,
+       why:`That's what TRUE gives. With FALSE, empty cells are kept, which leaves a ", ," gap.`},
+      {t:`#VALUE!, because a cell is empty.`,
+       why:`An empty cell isn't an error. TEXTJOIN either skips it or includes it as an empty item.`},
+      {t:`Only "Nadia, Aisyah", because it stops at the first empty cell.`,
+       why:`TEXTJOIN goes through the whole range. It never stops at a blank.`},
+    ]},
+  { type:'mcq', topic:'CONCAT', title:'Badge numbers',
+    say:`I made badge numbers with =CONCAT(H2,1001), which gives MY1001. Can I add 1 to it to get the next number?`,
+    q:`What type of value does <code>=CONCAT(H2,1001)</code> produce?`,
+    opts:[
+      {t:`Text. Joining turns the result into text, even though it contains digits, so =I2+1 gives #VALUE!.`, ok:true,
+       why:`CONCAT always returns text. That's fine for a label like MY1001, but you can't do maths on it. Keep the number in its own column if you need to calculate with it.`},
+      {t:`A number, because it contains 1001.`,
+       why:`The digits are part of a text label now. Excel treats the whole result as text.`},
+      {t:`A date.`,
+       why:`Nothing here is a date. CONCAT always returns text.`},
+      {t:`It depends on which cell comes first.`,
+       why:`The order doesn't matter. CONCAT always returns text, even if every input is a number.`},
+    ]},
+  { type:'mcq', topic:'Regional settings', title:'The colleague in Germany',
+    say:`Our co-organiser in Berlin typed my formula =LEFT(A2,9) into her Excel and got an error message.`,
+    q:`What's the most likely reason?`,
+    opts:[
+      {t:`Her regional settings use a semicolon to separate arguments, and the German function name, so she needs =LINKS(A2;9).`, ok:true,
+       why:`In many European regions, the comma is used for decimals, so Excel separates arguments with a semicolon. Function names can also be translated (LEFT is LINKS in German, SUM is SUMME). Formulas already in a file are converted automatically when it's opened; it's typing them by hand that trips people up.`},
+      {t:`LEFT only works in English-speaking countries.`,
+       why:`LEFT works everywhere. It may just have a local name and a different separator.`},
+      {t:`Her version of Excel can't count past 8 characters.`,
+       why:`There's no such limit. The problem is the formula syntax for her region.`},
+      {t:`The file has to be saved in German first.`,
+       why:`Files don't have a language. Excel converts formulas to the local settings when the file is opened.`},
+    ]},
+  ]
+},
+{
+  id:'orders', tab:'Orders', company:'Kain & Co.', file:'middle_east_orders.xlsx',
+  who:'Hafiz Daud', role:'Operations Lead', ini:'HD',
+  story:`We sell batik online, and our Middle East orders ship from a partner warehouse in Riyadh. I need to break down orders by month, rebuild the ship dates from the warehouse's export, and work out how many working days each order took. Careful: in Saudi Arabia the weekend is Friday and Saturday. In this workbook, today is Thursday 1 October 2026.`,
+  skills:['How Excel stores dates & times','TODAY & NOW','DAY, MONTH & YEAR','DATE','NETWORKDAYS.INTL','DATEDIF'],
+  cells: sheet([
+    ['Order','Order date','Month','Year','','Ship year','Ship month','Ship day','Ship date','Working days'],
+    ['KC-1041',D('2026-07-12'),'','','',2026,7,16],
+    ['KC-1042',D('2026-08-01'),'','','',2026,8,5],
+    ['KC-1043',D('2026-08-19'),'','','',2026,8,24],
+    ['KC-1044',D('2026-09-06'),'','','',2026,9,8],
+    ['KC-1045',D('2026-09-12'),'','','',2026,9,17],
+    ['KC-1046',D('2026-09-24'),'','','',2026,9,29],
+  ], {B:'date',C:'int',I:'date',J:'int'}),
+  tasks:[
+  { type:'mcq', topic:'How Excel stores dates', title:'The mystery number',
+    say:`I accidentally changed a cell holding today's date to the General format, and it now shows 46296. Did I break it?`,
+    q:`Why does 1 October 2026 show as 46296?`,
+    opts:[
+      {t:`Excel stores every date as a serial number: the count of days since 1 January 1900 (day 1). Formatting only changes how it's displayed.`, ok:true,
+       why:`1 October 2026 is day 46,296 in Excel's calendar. Because dates are numbers, you can subtract one from another to get the days between them, or add 7 to move a week ahead. Apply a Date format again and it shows as a date.`},
+      {t:`The date was corrupted and must be retyped.`,
+       why:`Nothing is broken. The value is exactly the same; only the display format changed.`},
+      {t:`It's the number of seconds since the year 2000.`,
+       why:`Excel counts days, not seconds, and it starts from 1 January 1900.`},
+      {t:`It's a random ID Excel gives each cell.`,
+       why:`It's not random: each day is one higher than the day before.`},
+    ]},
+  { type:'mcq', topic:'How Excel stores times', title:'What time is 0.75?',
+    say:`A delivery time cell shows 0.75 in General format. What time is that?`,
+    q:`Excel stores times as fractions of a day. What time is 0.75?`,
+    opts:[
+      {t:`6:00 PM (18:00)`, ok:true,
+       why:`A whole day is 1, so 0.5 is noon and 0.75 is three quarters of the way through the day: 18 of 24 hours.`},
+      {t:`7:30 AM`,
+       why:`That would treat 0.75 like clock digits. Times are fractions of 24 hours, so 0.75 × 24 = 18:00.`},
+      {t:`0:75, which isn't a valid time`,
+       why:`0.75 isn't hours and minutes. It's a fraction of a whole day.`},
+      {t:`75 minutes after midnight`,
+       why:`75 minutes would be 75 ÷ 1,440 ≈ 0.052. 0.75 is 18 hours.`},
+    ]},
+  { type:'mcq', topic:'TODAY & NOW', title:'Last refreshed',
+    say:`I want a cell at the top of the report that shows the date <b>and</b> time the figures were last recalculated.`,
+    q:`Which entry does that?`,
+    opts:[
+      {t:`<code>=NOW()</code>`, ok:true,
+       why:`NOW returns the current date and time and updates every time the sheet recalculates (press F9, or ⌘ + = on a Mac, to refresh it). Like TODAY, it takes no arguments, but the empty brackets are still required.`},
+      {t:`<code>=TODAY()</code>`,
+       why:`TODAY gives only the date, without the time.`},
+      {t:`Press Ctrl + ;`,
+       why:`That types today's date as a fixed value. It never updates and has no time.`},
+      {t:`<code>=NOW</code>`,
+       why:`Without the brackets, Excel looks for a name called NOW and shows #NAME?. Functions without arguments still need ().`},
+    ]},
+  { type:'formula', topic:'MONTH', title:'Orders by month',
+    say:`To total orders per month, I first need the month number of each order.`,
+    q:`In <b>C2</b>, extract the month number from the order date in B2.`,
+    target:'C2:C7', ref:'=MONTH(B2)', fmt:'int',
+    lesson:`<code>MONTH(date)</code> returns 1–12. Now you can sort or filter by month, or total August orders with SUMIF. <code>DAY(date)</code> returns the day of the month in the same way.`,
+    diag:[
+      {re:/DAY\(/, msg:`DAY returns the day of the month (12, 1, 19…). For the month number, use MONTH.`},
+      {re:/YEAR\(/, msg:`YEAR returns 2026. For the month, use MONTH.`},
+      {re:/TEXT\(/, msg:`TEXT returns a month name as text. Here you want the number, from MONTH(B2).`},
+    ]},
+  { type:'formula', topic:'YEAR', title:'Orders by year',
+    say:`And the year, so this sheet still works when 2027 orders arrive.`,
+    q:`In <b>D2</b>, extract the year from B2.`,
+    target:'D2:D7', ref:'=YEAR(B2)',
+    lesson:`<code>YEAR(date)</code> returns the four-digit year. With Month and Year in their own columns, you can filter "all orders in August 2026" with two simple filters.`,
+    diag:[ {re:/MONTH\(|DAY\(/, msg:`That returns a different part of the date. For the year, use YEAR(B2).`} ]},
+  { type:'formula', topic:'DATE', title:'Rebuild the ship date',
+    say:`The warehouse sends year, month and day in three separate columns. I need one real date I can calculate with.`,
+    q:`In <b>I2</b>, combine the year (F2), month (G2) and day (H2) into one date.`,
+    target:'I2:I7', ref:'=DATE(F2,G2,H2)', fmt:'date',
+    lesson:`<code>DATE(year, month, day)</code> always takes the parts in that order, whatever your regional date format is. Unlike joining with CONCAT, the result is a real date (a serial number), so you can subtract it from other dates or use it in NETWORKDAYS.`,
+    diag:[
+      {re:/DATE\(H2,G2,F2\)/, msg:`The order matters: DATE always takes year, month, day. Use DATE(F2, G2, H2).`},
+      {re:/DATE\(F2,H2,G2\)/, msg:`Month and day are swapped. DATE takes year, then month, then day.`},
+      {re:/CONCAT|&/, msg:`Joining the parts gives text like "2026716", not a date. You couldn't calculate with it. DATE builds a real date.`},
+    ]},
+  { type:'formula', topic:'NETWORKDAYS.INTL', title:'Working days in Riyadh',
+    say:`How many working days did the warehouse take, from order date to ship date? Remember, their weekend is Friday and Saturday.`,
+    q:`In <b>J2</b>, count working days from B2 to I2 with a Friday–Saturday weekend. Tip: in NETWORKDAYS.INTL, weekend code <b>7</b> means Friday and Saturday.`,
+    target:'J2:J7', ref:'=NETWORKDAYS.INTL(B2,I2,7)', fmt:'int',
+    lesson:`<code>NETWORKDAYS.INTL(start, end, weekend, holidays)</code> lets you choose the weekend. Code 1 is Saturday–Sunday (the default), 7 is Friday–Saturday, and 11–17 mean a single day off. You can also write a 7-character pattern starting Monday, so "0000110" is also Friday–Saturday. Neither version knows about public holidays; add a holiday list as the fourth argument.`,
+    diag:[
+      {re:/^=NETWORKDAYS\(B2,I2\)$/, msg:`Plain NETWORKDAYS uses a Saturday–Sunday weekend, so it counts Fridays as working days and Sundays as days off. For Riyadh, use NETWORKDAYS.INTL with weekend code 7.`},
+      {re:/INTL\(B2,I2\)$|INTL\(B2,I2,1\)/, msg:`Without a weekend code (or with 1), NETWORKDAYS.INTL assumes Saturday–Sunday. Add 7 for Friday–Saturday.`},
+      {re:/INTL\(I2,B2/, msg:`The dates are the wrong way round, so you get a negative number. Start date first: B2, then I2.`},
+      {re:/^=I2-B2$/, msg:`Subtracting dates counts every calendar day, weekends included. Use NETWORKDAYS.INTL to count only working days.`},
+    ]},
+  { type:'mcq', topic:'NETWORKDAYS', title:'What about public holidays?',
+    say:`Saudi National Day is 23 September, and the warehouse was closed. Does NETWORKDAYS.INTL know that?`,
+    q:`How do you make NETWORKDAYS or NETWORKDAYS.INTL skip public holidays?`,
+    opts:[
+      {t:`List the holiday dates in a range and add it as the last argument, e.g. =NETWORKDAYS.INTL(B2,I2,7,L2:L10).`, ok:true,
+       why:`Neither function has holidays built in. They only skip the dates you give them, so keep a holiday table in the workbook and point to it.`},
+      {t:`Nothing: Excel knows every country's public holidays.`,
+       why:`Excel has no built-in holiday calendar. Without a list, holidays count as working days.`},
+      {t:`Change the weekend code to 8.`,
+       why:`Weekend codes only set which weekdays are off every week. They can't mark single dates. 8 isn't a valid code either.`},
+      {t:`Subtract 1 from every result.`,
+       why:`That's wrong for orders whose dates don't include the holiday. A holiday list only removes it where it actually falls.`},
+    ]},
+  { type:'mcq', topic:'DATEDIF', title:'The hidden function',
+    say:`I typed =DATEDIF( to work out how long each customer has been with us, but no help box popped up, and Insert Function can't find it. Is it broken?`,
+    q:`Why doesn't DATEDIF show any help?`,
+    opts:[
+      {t:`It's a legacy function: still supported, but hidden from autocomplete and Insert Function. Type it in full: =DATEDIF(start, end, "y").`, ok:true,
+       why:`DATEDIF survives from older spreadsheet programs for compatibility. It works, but Excel doesn't advertise it, and Microsoft warns that some results (like the "md" unit) can be unreliable. "y", "m" and "d" give complete years, months and days.`},
+      {t:`It only works on a Mac.`,
+       why:`It works on Windows and Mac. It's hidden on both.`},
+      {t:`It was removed from Excel, so the formula will show #NAME?.`,
+       why:`It hasn't been removed. Typed correctly, it returns a result.`},
+      {t:`It needs an add-in to be installed first.`,
+       why:`No add-in is needed. It's built in, just not listed.`},
+    ]},
+  { type:'mcq', topic:'How Excel stores dates', title:'Four years and a day',
+    say:`A supplier sent an old file made on an early Mac version of Excel. When I copy their dates into my workbook, every one is 4 years and 1 day out.`,
+    q:`What's the most likely cause?`,
+    opts:[
+      {t:`Their file uses the 1904 date system (day 1 = 1 January 1904), while mine uses the 1900 system.`, ok:true,
+       why:`Excel for Mac before 2011 started counting from 1904. The same serial number is then 1,462 days (4 years and 1 day) apart between the two systems. Check File > Options > Advanced > "Use 1904 date system" and make both workbooks match before copying.`},
+      {t:`The dates were typed in the wrong regional format.`,
+       why:`A day/month mix-up would swap days and months, not shift every date by exactly 4 years and 1 day.`},
+      {t:`Leap years were not counted.`,
+       why:`Excel counts leap years in both systems. The shift comes from the different starting point.`},
+      {t:`The supplier's computer clock was wrong.`,
+       why:`The system clock affects TODAY and NOW, not dates already stored in the file.`},
+    ]},
+  ]
+},
+{
+  id:'quote', tab:'Quote', company:'Rimba Outdoor Supply', file:'gunung_gear_quote.xlsx',
+  who:'Danial Yusof', role:'Sales Executive', ini:'DY',
+  story:`I'm meeting Gunung Gear, one of our biggest retail customers, tomorrow. Their last order is in this sheet, but I still need the discounts, delivery charges, final totals and a summary by delivery zone. Our rules: orders <b>over</b> $10,000 get 10% off, and delivery depends on the zone. Customers who pick up from our warehouse pay no delivery.`,
+  skills:['Logical operators','IF','IFS & nested IF','AND & OR','SUMIF','COUNTIF','AVERAGEIF'],
+  cells: (()=>{
+    const c={};
+    const put=(a,v,fmt,h)=>{ c[a]={v}; if(fmt) c[a].fmt=fmt; if(h) c[a].h=true; };
+    put('A1','Zone',0,1); put('B1','Delivery charge',0,1);
+    [['North',25],['Central',15],['South',30]].forEach(([z,v],i)=>{ put('A'+(i+2),z,0,1); put('B'+(i+2),v,'money'); });
+    put('D1','Zone',0,1); put('E1','Sales total',0,1); put('F1','Orders',0,1); put('G1','Average order',0,1);
+    ['North','Central','South'].forEach((z,i)=>put('D'+(i+2),z,0,1));
+    ['Item','Unit price','Qty','Subtotal','Discount','Total','Zone','Delivery','Total + delivery'].forEach((h,i)=>put(colStr(i+1)+'6',h,0,1));
+    [['Backpack 60L',320,45,'Central'],['Camping stove',250,40,'South'],['Tent (4-person)',420,30,'North'],['Sleeping bag',150,40,'Central'],
+     ['Headlamp',45,120,'North'],['Water filter',180,25,'Pickup'],['Folding chair',85,60,'South'],['Trekking poles',110,100,'North']].forEach(([it,p,q,z],i)=>{
+      const r=i+7; put('A'+r,it); put('B'+r,p,'money'); put('C'+r,q,'int'); put('D'+r,p*q,'money'); put('G'+r,z); });
+    return c; })(),
+  tasks:[
+  { type:'mcq', topic:'Logical operators', title:'Not equal to',
+    say:`Before we start: I want a test that is TRUE for every order that is <b>not</b> a warehouse pickup.`,
+    q:`Which logical test is TRUE when the zone in G7 is anything except "Pickup"?`,
+    opts:[
+      {t:`<code>G7&lt;&gt;"Pickup"</code>`, ok:true,
+       why:`In Excel, "not equal to" is a less-than sign followed by a greater-than sign: &lt;&gt;. The other comparison operators are =, &gt;, &lt;, &gt;= and &lt;=. Text in a test always goes in double quotes.`},
+      {t:`<code>G7!="Pickup"</code>`,
+       why:`!= means "not equal" in many programming languages, but Excel doesn't accept it and rejects the formula.`},
+      {t:`<code>G7&gt;&lt;"Pickup"</code>`,
+       why:`The order matters: Excel only understands &lt;&gt;. The reversed &gt;&lt; isn't an operator.`},
+      {t:`<code>G7=NOT"Pickup"</code>`,
+       why:`NOT is a function that needs brackets, such as NOT(G7="Pickup"). Written like this, Excel can't read it.`},
+    ]},
+  { type:'formula', topic:'IF', title:'Who gets 10% off?',
+    say:`Orders over $10,000 get a 10% discount. Everything else gets 0.`,
+    q:`In <b>E7</b>, use IF: if the subtotal in D7 is <b>over</b> 10,000, show 10%; otherwise show 0. It fills down to E14.`,
+    target:'E7:E14', ref:'=IF(D7>10000,10%,0)', fmt:'pct',
+    lesson:`<code>IF(test, value if true, value if false)</code>. The test <code>D7&gt;10000</code> is FALSE for the camping stove at exactly $10,000, because "over" means &gt;, not &gt;=. 10% is typed without quotes, so Excel stores it as the number 0.1 and you can calculate with it. <code>0.1</code> works too.`,
+    diag:[
+      {re:/D7>=10000/, msg:`Look at the camping stove: exactly $10,000. "Over $10,000" means more than, so use > rather than >=.`},
+      {re:/"10%"/, msg:`With quotes, "10%" is text, and you can't multiply a price by text. Type 10% without quotes so it's a number.`},
+      {re:/D7<10000/, msg:`Check which way round it is: when D7<10000 is TRUE, the discount should be 0, so 0 must be the second argument.`},
+    ]},
+  { type:'mcq', topic:'IF', title:'Quotes or no quotes?',
+    say:`My colleague always puts quotes around the results of an IF. Why didn't we use quotes for 10%?`,
+    q:`What goes wrong with <code>=IF(D7&gt;10000,"10%",0)</code>?`,
+    opts:[
+      {t:`"10%" becomes text. It looks right, but formulas that multiply by it return #VALUE!.`, ok:true,
+       why:`Quotes tell Excel "this is text". Use them for words like "Bonus", but leave numbers, percentages and cell references without quotes so they can be calculated with.`},
+      {t:`Nothing. Quotes are optional.`,
+       why:`They change the data type. With quotes, the result is text, not a number.`},
+      {t:`The formula shows #NAME?.`,
+       why:`The formula is valid. It just returns text instead of a number, so the problem only shows up later, in calculations.`},
+      {t:`It shows 1000% instead of 10%.`,
+       why:`It shows exactly "10%" as typed. The problem is that it's text.`},
+    ]},
+  { type:'formula', topic:'Formulas', title:'Total after discount',
+    say:`Now the total for each line, after the discount.`,
+    q:`In <b>F7</b>, calculate the subtotal D7 minus its discount: subtotal × (1 − discount).`,
+    target:'F7:F14', ref:'=D7*(1-E7)', fmt:'money',
+    lesson:`<code>=D7*(1-E7)</code> keeps 90% of the subtotal when the discount is 10%, and 100% when it's 0. <code>=D7-D7*E7</code> gives the same result.`,
+    diag:[
+      {re:/^=D7\*E7$/, msg:`That's the discount amount itself ($1,440 for the backpacks), not the total after the discount.`},
+      {re:/^=D7-E7$/, msg:`E7 is 10%, i.e. 0.1, so this takes off 10 cents, not 10%. Multiply: D7*(1-E7).`},
+      {re:/^=D7\*1-E7$/, msg:`Multiplication happens before subtraction, so this is D7 − 0.1. Put 1-E7 in brackets.`},
+    ]},
+  { type:'formula', topic:'IFS', title:'Delivery by zone',
+    say:`Delivery depends on the zone: the charges are in B2:B4. Pickup, or any other zone, pays 0.`,
+    q:`In <b>H7</b>, use IFS to look at the zone in G7 and return the matching charge from B2, B3 or B4, or 0 for anything else. Lock the charge cells with $ so the formula fills down to H14.`,
+    target:'H7:H14', ref:'=IFS(G7="North",$B$2,G7="Central",$B$3,G7="South",$B$4,TRUE,0)', fmt:'money',
+    lesson:`Each pair in IFS is a test and its result. Text such as "North" needs double quotes. The final <code>TRUE,0</code> catches every other zone (like Pickup), so you get 0 instead of #N/A. The $ signs keep B2, B3 and B4 fixed when the formula is copied down.`,
+    diag:[
+      {re:/G7=North|G7=Central|G7=South/, msg:`Zone names are text, so they need double quotes: G7="North". Without quotes, Excel looks for something named North and shows #NAME?.`},
+      {re:/^=IFS\((?!.*TRUE).*\)$/, msg:`The water filter is a Pickup order, so none of your tests match and IFS returns #N/A. Add TRUE,0 at the end as a catch-all.`},
+      {re:/(^|[^$])B2[^0-9]|(^|[^$])B3[^0-9]|(^|[^$])B4[^0-9]/, msg:`Row 7 works, but when you fill down, B2 becomes B3, B4… and the charges shift. Lock them: $B$2, $B$3, $B$4.`},
+    ]},
+  { type:'mcq', topic:'Nested IF', title:'The nested IF version',
+    say:`Our old spreadsheets use nested IFs instead of IFS. What would the same delivery formula look like?`,
+    q:`Which nested IF gives the same result as the IFS formula?`,
+    opts:[
+      {t:`<code>=IF(G7="North",$B$2,IF(G7="Central",$B$3,IF(G7="South",$B$4,0)))</code>`, ok:true,
+       why:`Each new IF goes in the "value if false" position of the one before, so Excel only tries the next test when the previous one fails. Every IF needs its own closing bracket, which is why there are three at the end. The last 0 does the same job as TRUE,0 in IFS.`},
+      {t:`<code>=IF(G7="North",$B$2,IF(G7="Central",$B$3,IF(G7="South",$B$4,0)</code>`,
+       why:`There are three IFs but only one closing bracket. Each IF needs its own, so Excel will report a missing bracket.`},
+      {t:`<code>=IF(G7="North",$B$2,=IF(G7="Central",$B$3,=IF(G7="South",$B$4,0)))</code>`,
+       why:`Only the start of the whole formula needs =. Nested functions are written without one.`},
+      {t:`<code>=IF(AND(G7="North",G7="Central",G7="South"),$B$2,0)</code>`,
+       why:`A zone can't be North AND Central AND South at the same time, so this is always FALSE. It also returns only one charge.`},
+    ]},
+  { type:'formula', topic:'Formulas', title:'Grand total per line',
+    say:`Last column: the line total including delivery.`,
+    q:`In <b>I7</b>, add the total (F7) and the delivery charge (H7).`,
+    target:'I7:I14', ref:'=F7+H7', fmt:'money',
+    lesson:`A simple addition, but it depends on two formulas you built. If a discount rule or a delivery charge changes, this column updates automatically.`,
+    diag:[ {re:/D7\+H7/, msg:`D7 is the subtotal before the discount. Use the total after discount, F7.`} ]},
+  { type:'mcq', topic:'AND & OR', title:'All or any?',
+    say:`Quick check on row 8, the camping stove: subtotal exactly $10,000, zone South.`,
+    q:`What does <code>=OR(D8&gt;10000,G8="South")</code> return, and what would AND return with the same two tests?`,
+    opts:[
+      {t:`OR returns TRUE; AND would return FALSE.`, ok:true,
+       why:`The first test is FALSE (10,000 isn't more than 10,000) and the second is TRUE. OR needs only one TRUE test, but AND needs every test to be TRUE. Both can take many tests at once, and both return TRUE or FALSE, so wrap them in IF to show your own words.`},
+      {t:`Both return TRUE.`,
+       why:`AND needs every test to pass. D8>10000 fails, so AND is FALSE.`},
+      {t:`Both return FALSE.`,
+       why:`OR only needs one TRUE test, and G8="South" is TRUE.`},
+      {t:`OR returns FALSE; AND would return TRUE.`,
+       why:`That's the wrong way round. OR is the forgiving one: any single TRUE is enough.`},
+    ]},
+  { type:'formula', topic:'SUMIF', title:'Sales by zone',
+    say:`For the meeting I want sales totals per zone at the top of the sheet.`,
+    q:`In <b>E2</b>, use SUMIF to add up the totals F7:F14 for rows whose zone (G7:G14) matches the zone name in D2. Lock both ranges with $ so it fills down to E4.`,
+    target:'E2:E4', ref:'=SUMIF($G$7:$G$14,D2,$F$7:$F$14)', fmt:'money',
+    lesson:`<code>SUMIF(range to check, criteria, range to add)</code>. Using D2 as the criteria (instead of typing "North") means one formula works for every zone as it fills down. The ranges need $ so they stay on rows 7–14. Criteria can also use operators in quotes, such as ">10000".`,
+    diag:[
+      {re:/SUMIF\(G7:G14/, msg:`E2 is right, but when you fill down, G7:G14 becomes G8:G15 and rows are missed. Lock both ranges: $G$7:$G$14 and $F$7:$F$14.`},
+      {re:/"North"/, msg:`Typing "North" works in E2, but when you fill down, every row still says North. Point to the zone name in D2 instead.`},
+      {re:/\$D\$7:\$D\$14|D7:D14/, msg:`D7:D14 is the subtotal before discount. Use the totals after discount in F7:F14.`},
+      {re:/SUMIF\(\$?F\$?7:\$?F\$?14,\$?D/, msg:`The order is: range to check (the zones in G), then the criteria (D2), then the range to add (F).`},
+    ]},
+  { type:'formula', topic:'COUNTIF', title:'Orders per zone',
+    say:`How many order lines went to each zone?`,
+    q:`In <b>F2</b>, count how many zones in G7:G14 match D2. Lock the range with $.`,
+    target:'F2:F4', ref:'=COUNTIF($G$7:$G$14,D2)', fmt:'int',
+    lesson:`<code>COUNTIF(range, criteria)</code> needs only two arguments, because it counts matches instead of adding values. North appears 3 times, Central twice, South twice.`,
+    diag:[
+      {re:/COUNTIF\(G7:G14/, msg:`Right for F2, but the range slides down as you fill. Lock it: $G$7:$G$14.`},
+      {re:/^=COUNT\(/, msg:`COUNT counts cells that contain numbers. Zones are text, and you only want the matches: COUNTIF.`},
+      {re:/SUMIF/, msg:`SUMIF adds values. To count matching rows, use COUNTIF.`},
+    ]},
+  { type:'formula', topic:'AVERAGEIF', title:'Average order per zone',
+    say:`And the average order value per zone.`,
+    q:`In <b>G2</b>, use AVERAGEIF to average the totals F7:F14 for the zone in D2. Lock the ranges.`,
+    target:'G2:G4', ref:'=AVERAGEIF($G$7:$G$14,D2,$F$7:$F$14)', fmt:'money',
+    lesson:`AVERAGEIF takes the same three arguments as SUMIF, but returns the average of the matching rows. You could also divide your SUMIF result by your COUNTIF result (E2/F2) and get the same answer.`,
+    diag:[
+      {re:/AVERAGEIF\(G7:G14/, msg:`Right for G2, but lock the ranges with $ so they don't slide when filled down.`},
+      {re:/^=AVERAGE\(/, msg:`AVERAGE uses every row. You need only the rows for the zone in D2: AVERAGEIF.`},
+    ]},
+  { type:'mcq', topic:'COUNTIF', title:'Capital letters',
+    say:`A colleague typed =COUNTIF(G7:G14,"NORTH") in capitals. Will it miss the rows that say "North"?`,
+    q:`What does <code>=COUNTIF(G7:G14,"NORTH")</code> return?`,
+    opts:[
+      {t:`3. Text criteria in COUNTIF, SUMIF and AVERAGEIF ignore upper and lower case.`, ok:true,
+       why:`"NORTH", "North" and "north" all match. Extra spaces are a different story: "North " with a trailing space would not match, which is why cleaning data with TRIM first matters.`},
+      {t:`0, because the capitals don't match.`,
+       why:`These functions aren't case-sensitive, so capitals don't matter.`},
+      {t:`#VALUE!`,
+       why:`The formula is valid. Upper-case criteria are fine.`},
+      {t:`8, because it counts every row.`,
+       why:`It only counts cells that match the criteria: the three North rows.`},
+    ]},
+  { type:'mcq', topic:'SUMIF', title:'Big orders only',
+    say:`Last question for the meeting: how much did Gunung Gear spend on lines whose total was over $10,000?`,
+    q:`Which formula adds up only the totals in F7:F14 that are greater than 10,000?`,
+    opts:[
+      {t:`<code>=SUMIF(F7:F14,"&gt;10000")</code>`, ok:true,
+       why:`Criteria with an operator go inside quotes. When the range you check is also the range you add, you can leave out the third argument. The result here is $24,300 (the backpacks and the tents).`},
+      {t:`<code>=SUMIF(F7:F14,&gt;10000)</code>`,
+       why:`Without quotes, Excel can't read >10000 as an argument. Criteria with an operator must be in quotes.`},
+      {t:`<code>=SUM(F7:F14&gt;10000)</code>`,
+       why:`This compares the range to 10,000 rather than adding the matching values. SUMIF is the function that adds only the matches.`},
+      {t:`<code>=COUNTIF(F7:F14,"&gt;10000")</code>`,
+       why:`COUNTIF tells you how many lines are over $10,000 (2), not their total.`},
+    ]},
+  ]
+},
+{
+  id:'exec', tab:'Summary', company:'Ledger & Line', file:'q1_board_summary.xlsx',
   who:'Rachel Tan', role:'Director, Ledger & Line', ini:'RT', finale:true,
   story:`Great work this week. Last job: a client wants a one-page Q1 summary for their board. Build the key figures from the monthly data, then help me decide what goes at the top.`,
   skills:['SUM & MAX','IF status flags','Profit margin','Writing the summary','Final checks'],
@@ -1139,13 +1743,25 @@ const rankFor = pct => RANKS.filter(r=>pct>=r[0]).pop()[1];
 const newState = () => ({screen:'welcome', s:0, t:0, res:{}, drafts:{}, ui:{}});
 let state = newState();
 try{
-  let saved=JSON.parse(localStorage.getItem('ledger-line-v2')||'null');
+  let saved=JSON.parse(localStorage.getItem('ledger-line-v5')||'null'); const fromOld=!saved;
+  if(!saved) saved=JSON.parse(localStorage.getItem('ledger-line-v4')||'null');
+  if(!saved){ const v3=JSON.parse(localStorage.getItem('ledger-line-v3')||'null');
+    if(v3 && v3.res){ const sm=b=> b<=5?b : b<=10?b+3 : b+6;
+      const mv=o=>{ const n={}; for(const [k,v] of Object.entries(o||{})){ const [a,b]=k.split('-').map(Number); n[a===5?`6-${b}` : a===4?`4-${sm(b)}` : k]=v; } return n; };
+      v3.res=mv(v3.res); v3.drafts=mv(v3.drafts); if(v3.s===5) v3.s=6; else if(v3.s===4) v3.t=sm(v3.t); saved=v3; } }
+  if(!saved){ const v2=JSON.parse(localStorage.getItem('ledger-line-v2')||'null');
+    if(v2 && v2.res){ const mv=o=>{ const n={}; for(const [k,v] of Object.entries(o||{})){ const [a,b]=k.split('-').map(Number); n[a===4?`5-${b}`:k]=v; } return n; };
+      const mv2=o=>{ const n={}; for(const [k,v] of Object.entries(o||{})){ const [a,b]=k.split('-').map(Number); n[a===4?`6-${b}`:k]=v; } return n; };
+      v2.res=mv2(v2.res); v2.drafts=mv2(v2.drafts); if(v2.s===4) v2.s=6; saved=v2; } }
   if(!saved){ const old=JSON.parse(localStorage.getItem('ledger-line-v1')||'null');
     if(old && old.res){ const mv=o=>{ const n={}; for(const [k,v] of Object.entries(o||{})){ const [a,b]=k.split('-').map(Number); n[a===1&&b>=7 ? `1-${b+6}` : k]=v; } return n; };
-      old.res=mv(old.res); old.drafts=mv(old.drafts); if(old.s===1&&old.t>=7) old.t+=6; saved=old; } }
+      const fin=o=>{ const n={}; for(const [k,v] of Object.entries(o||{})){ const [a,b]=k.split('-').map(Number); n[a===4?`6-${b}`:k]=v; } return n; };
+      old.res=fin(mv(old.res)); old.drafts=fin(mv(old.drafts)); if(old.s===1&&old.t>=7) old.t+=6; if(old.s===4) old.s=6; saved=old; } }
+  if(fromOld && saved && saved.res){ const mv=o=>{ const n={}; for(const [k,v] of Object.entries(o||{})){ const [a,b]=k.split('-').map(Number); n[a===6?`7-${b}`:k]=v; } return n; };
+    saved.res=mv(saved.res); saved.drafts=mv(saved.drafts); if(saved.s===6) saved.s=7; }
   if(saved && saved.res) state=Object.assign(newState(),saved);
 }catch(e){}
-const save = () => { try{ localStorage.setItem('ledger-line-v2', JSON.stringify(state)); }catch(e){} };
+const save = () => { try{ localStorage.setItem('ledger-line-v5', JSON.stringify(state)); }catch(e){} };
 
 const key = (s,t) => `${s}-${t}`;
 const R = (s,t) => state.res[key(s,t)] || (state.res[key(s,t)]={wrong:0,done:false,pts:0,picks:[],revealed:false});
@@ -1177,6 +1793,7 @@ const ERR_EXPLAIN = {
   '#CIRC!':`The formula refers to its own cell, directly or through a range (a circular reference). Point only to the input cells.`,
   '#NUM!':`The numbers don't work for this function. For DATEDIF, the start date must come before the end date, and the unit must be "Y", "M" or "D".`,
   '#ARGS':`A function has the wrong number of arguments. Check what goes inside the brackets, separated by commas.`,
+  '#SPILL!':`The result needs more than one cell, but a cell it would spill into isn't empty. Clear the cells to the right.`,
   '#SYNTAX':`One of the cells your formula uses has a broken formula.`,
 };
 
@@ -1200,13 +1817,14 @@ function runFormula(s,t,formula){
   const u=JSON.parse(JSON.stringify(base)), e=JSON.parse(JSON.stringify(base));
   addrs.forEach((a,k)=>{ u[a]=Object.assign({},u[a]||{}, {f:shiftFormula(formula,k), fmt:tk.fmt}); e[a]=Object.assign({},e[a]||{}, {f:shiftFormula(tk.ref,k), fmt:tk.fmt}); delete u[a].v; delete e[a].v; });
   const ub=new Book(u), eb=new Book(e);
-  return addrs.map(a=>({a, got:ub.get(a), exp:eb.get(a)}));
+  return addrs.concat(tk.spillCells||[]).map(a=>({a, got:ub.get(a), exp:eb.get(a)}));
 }
 
 function checkFormula(s,t,raw){
   const tk=SITS[s].tasks[t];
   let f=raw.trim();
   if(!f) return {kind:'syntax', msg:`Type a formula first.`};
+  if(/[“”„]/.test(f)) return {kind:'syntax', msg:`Your formula has curly quotes (“ ”). Excel needs straight double quotes ("). Curly quotes often sneak in when you copy a formula from Word or a web page.`};
   if(f[0]!=='=') return {kind:'syntax', msg:`Without = at the start, Excel stores what you typed as plain text and calculates nothing. Every formula starts with =.`};
   try{ parse(f.slice(1)); } catch(x){ if(x instanceof SynErr) return {kind:'syntax', msg:`Excel would reject this formula. ${x.msg}`}; throw x; }
   const rows=runFormula(s,t,f), n=norm(f);
@@ -1309,8 +1927,9 @@ function bookPane(s,t,opts={}){
     h+=`<tr><th scope="row">${rr}</th>`;
     for(let c=1;c<=maxC;c++){
       const a=colStr(c)+rr, cell=cells[a];
-      let v = cell ? book.get(a) : null;
+      let v = book.get(a);
       const cls=[];
+      if(!cell && (a in book.spilled)) cls.push('spill');
       if(cell&&cell.h) cls.push('hdr');
       if(typeof v==='number') cls.push('num');
       if(isErr(v)) cls.push('err');
@@ -1325,7 +1944,7 @@ function bookPane(s,t,opts={}){
   h+=`</tbody></table>`;
   let selTxt='';
   if(sel){ const c=cells[sel]; selTxt = c ? (c.f ? c.f : (typeof c.v==='number' && c.fmt==='date' ? fmtVal(c.v,'date') : typeof c.v==='number' ? fmtGeneral(c.v) : String(c.v))) : ''; }
-  const status = s===3 ? `<span>Today in this workbook: <b>Thu 01-Oct-2026</b></span>` : '';
+  const status = ['hr','orders'].includes(SITS[s].id) ? `<span>Today in this workbook: <b>Thu 01-Oct-2026</b></span>` : '';
   const isF = tk && tk.type==='formula' && state.screen==='task';
   return `<section class="panel book" aria-label="Workbook">
     <div class="bookhead"><div class="filename">${esc(sit.file)} <span>· ${esc(sit.company)}</span></div>
@@ -1436,7 +2055,7 @@ function taskCard(s,t){
 function introCard(s){
   const sit=SITS[s];
   return `<section class="panel pad">
-    <div class="eyebrow"><span>${sit.finale?'Final project':'Situation '+(s+1)+' of 4'}</span><span class="topic">${sit.tasks.length} tasks</span></div>
+    <div class="eyebrow"><span>${sit.finale?'Final assignment':'Situation '+(s+1)+' of '+(SITS.length-1)}</span><span class="topic">${sit.tasks.length} tasks</span></div>
     <h2>${esc(sit.company)}</h2>
     ${whoBlock(sit, esc(sit.story))}
     <h3 style="margin-top:16px">Skills on this sheet</h3>
@@ -1462,9 +2081,9 @@ function sitDoneCard(s){
 function welcome(){
   return `<section class="hero">
     <div>
-      <div class="eyebrow"><span>Preparing data for analysis with Microsoft Excel</span></div>
+      <div class="eyebrow"><span>Excel training simulation</span></div>
       <h2>Your first week as a <em>junior analyst</em>.</h2>
-      <p class="lede">You've just joined Ledger &amp; Line, a small data consultancy. This week you'll visit four clients, each with a messy spreadsheet problem, and finish with an executive summary for your director. Every task uses a skill from the course.</p>
+      <p class="lede">You've just joined Ledger &amp; Line, a small data consultancy. This week you'll visit seven clients, each with a messy spreadsheet problem, and finish with an executive summary for your director. Every task practises a real Excel skill you can use at work.</p>
       <div class="route">
         ${SITS.map((x,i)=>`<div class="route-row"><span class="cellref">${x.finale?'Final':'Day '+(i+1)}</span><div><b>${esc(x.company)}</b><span>${esc(x.skills.join(' · '))}</span></div></div>`).join('')}
       </div>
@@ -1550,7 +2169,7 @@ document.addEventListener('click', e=>{
   if(act==='sitdone') return go('sitdone', state.s);
   if(act==='nextsit') return state.s<SITS.length-1 ? go('intro', state.s+1) : go('results');
   if(act==='redo'){ SITS[state.s].tasks.forEach((_,t)=>{ delete state.res[key(state.s,t)]; delete state.drafts[key(state.s,t)]; }); return go('intro', state.s); }
-  if(act==='reset'){ state=newState(); try{ localStorage.removeItem('ledger-line-v2'); localStorage.removeItem('ledger-line-v1'); }catch(x){} return go('welcome'); }
+  if(act==='reset'){ state=newState(); try{ localStorage.removeItem('ledger-line-v5'); localStorage.removeItem('ledger-line-v4'); localStorage.removeItem('ledger-line-v3'); localStorage.removeItem('ledger-line-v2'); localStorage.removeItem('ledger-line-v1'); }catch(x){} return go('welcome'); }
   if(act==='next'){
     const s=state.s, t=state.t;
     if(t<SITS[s].tasks.length-1) return go('task', s, t+1);
